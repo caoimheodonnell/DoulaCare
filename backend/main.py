@@ -1,70 +1,130 @@
-# From Youtube Video "How to connect to an online MySQL database using FastAPI" - 2:15
-# From Youtube Video "How to Create a FastAPI & React Project - Python Backend + React Frontend" - 10 minutes
-# How I adapted the code for DoulaCare
-# Uses SQLModel connecting to a single SQL URL engine
-# Enables CORs for both my react vite and react native
-# For my static file - Youtube video - Python FastAPI Tutorial #12 How to serve static files in FastAPI
+"""
+
+What this file does:
+- Creates a SQLModel engine for MySQL using settings from `backend.settings.MYSQL_URL`.
+- Serves static files from `/static`, including uploaded PDF certificates  and images under `/static/certificates`.
+- Enables CORS for local Vite and Expo - React Native development.
+- Shows endpoints for:
+  - Users
+  - Doulas
+  - Bookings
+
+References used while building this:
+- YouTube: "How to connect to an online MySQL database using FastAPI" (engine + session patterns)- 2.15-https://www.youtube.com/watch?v=QuaNqXi-OwM
+- YouTube: "How to Create a FastAPI & React Project - Python Backend and React Frontend" (project wiring and startup)-10 minutes-https://www.youtube.com/watch?v=aSdVU9-SxH4&t=648s
+- YouTube: "Python FastAPI Tutorial #12 How to serve static files in FastAPI" (static mounting)-https://www.youtube.com/watch?v=nylnxFn1_U0
+- ChatGPT for booking date error fix - https://chatgpt.com/c/6909d8e0-3bc0-8327-81dc-c1a4bebc6b8b
+-ChatGPT debugging statement for certificates - https://chatgpt.com/c/690b7959-8ce0-8333-81a2-da437a26163b
+- Upload certificate file https://fastapi.tiangolo.com/tutorial/request-files/#file-parameters-with-uploadfile
+- Helped the chat backend - https://www.youtube.com/watch?v=nZhAW-JQ8NM
+- For voice navigation backedn function - https://medium.com/@bnhminh_38309/build-a-fastapi-backend-for-speech-to-text-transcription-with-openai-whisper-4de7f082ab6e
+- Errror handlign for voice navigatio - https://chatgpt.com/c/691b2910-cc30-8325-bc1a-027aa7947a2c
+- Payment using STripe - https://medium.com/@abdulikram/building-a-payment-backend-with-fastapi-stripe-checkout-and-webhooks-08dc15a32010
+"""
 
 
-from fastapi import FastAPI,Depends, HTTPException, Query,UploadFile, File
+
+from fastapi import FastAPI,Depends, HTTPException, Query,UploadFile, File, Request
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import SQLModel, Session, create_engine, select
 from typing import List,Optional
 from contextlib import asynccontextmanager
-from backend.settings import MYSQL_URL
 from backend.models.user import User
+#to allow web/mobile development origins
 from fastapi.middleware.cors import CORSMiddleware
-from .models.service import Service
-from .db import get_session
+from backend.db import engine, get_session
+from collections import deque
 from .models.booking import Booking
 from pathlib import Path
+#Random filenames for uploads
 from uuid import uuid4
+#file copy for uploads
 import shutil
+from fastapi.responses import JSONResponse
 from datetime import datetime, timezone
-# Create a database connection engine using the MySQL URL from settings.py
-# echo=True prints SQL statements in the terminal for debugging
-engine = create_engine(MYSQL_URL, echo=True)
+from fastapi.routing import APIRoute
+from fastapi import WebSocket, WebSocketDisconnect
+from backend.chat import manager
+import requests
+from dotenv import load_dotenv
+import os
+from sqlalchemy import and_
+import stripe
+from pydantic import BaseModel
+from backend.schemas import ReviewCreate
+from backend.models.review import Review
 
 
 
+class CheckoutRequest(BaseModel):
+    booking_id: int
+
+
+
+#Voice Navigation -https://medium.com/@bnhminh_38309/build-a-fastapi-backend-for-speech-to-text-transcription-with-openai-whisper-4de7f082ab6e
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 
 # This function makes sure the database and tables are created before the app starts
+#From Youtube Video "How to connect to an online MySQL database using FastAPI"-https://www.youtube.com/watch?v=QuaNqXi-OwM- 3mins
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
 
 
-# Lifespan context handles startup and shutdown events for the FastAPI app
+#From Youtube Video "How to connect to an online MySQL database using FastAPI"-https://www.youtube.com/watch?v=QuaNqXi-OwM- 3mins
 # It runs create_db_and_tables() when the app starts
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()
     yield
+
 #For my certifcates uploads
+#"Python FastAPI Tutorial #12 How to serve static files in FastAPI"- https://www.youtube.com/watch?v=nylnxFn1_U0
+#Certificates are stored under static/certificates
 app = FastAPI(title="DoulaCare API", lifespan=lifespan)
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 CERT_DIR = STATIC_DIR / "certificates"
+IMAGE_DIR  = STATIC_DIR / "images"
 CERT_DIR.mkdir(parents=True, exist_ok=True)
+IMAGE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-#for my booking system
-def to_naive_utc(dt: datetime | None) -> datetime | None:
-    if dt is None:
-        return None
-    # convert aware -> UTC -> drop tzinfo
-    if dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc).replace(tzinfo=None)
-    # already naive: assume it's local; keep it as-is or normalize if you prefer
-    return dt
+ENV_PATH = BASE_DIR / ".env"
+load_dotenv(dotenv_path=ENV_PATH)
 
-#Youtube video-Python FastAPI Tutorial #12 How to serve static files in FastAPI
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+print("OPENAI_API_KEY loaded?", bool(OPENAI_API_KEY))
+
+
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+print("STRIPE key loaded?", bool(stripe.api_key))
+
+#Youtube video-Python FastAPI Tutorial #12 How to serve static files in FastAPI-https://www.youtube.com/watch?v=nylnxFn1_U0
+#anything inside STATIC_DIR is served under this path
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 print("STATIC_DIR:", STATIC_DIR)
 
 
+@app.middleware("http")
+async def log_requests(request, call_next):
+    print("========== NEW REQUEST ==========")
+    print(f"URL: {request.url}")
+    print(f"Client: {request.client.host}")
+    print(f"Method: {request.method}")
+    # you can comment this out if too noisy:
+    # print(f"Headers: {dict(request.headers)}")
+
+    response = await call_next(request)
+
+    print(f"Status code: {response.status_code}")
+    print("=================================")
+    return response
+
 # CORS (Cross-Origin Resource Sharing)
+#Allow local vite and Expo development origins
+##https://www.youtube.com/watch?v=aSdVU9-SxH4&t=648s - 12 minutes for origins adapted to my own
 origins = [
     # Vite web
     "http://localhost:5173",
@@ -91,6 +151,10 @@ origins = [
     "http://127.0.0.1:19000",
 ]
 
+# Enable Cross-Origin Resource Sharing (CORS) for the frontend app
+# This allows the React Native / web frontend (e.g., localhost:3000) to call the FastAPI backend (localhost:8000)
+# From YouTube: "FastAPI CORS Middleware explained" - https://www.youtube.com/watch?v=aSdVU9-SxH4&t=648s - 13 mins
+# Official docs: https://fastapi.tiangolo.com/tutorial/cors/
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -99,16 +163,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Where static files live:  .../backend/static
-BASE_DIR = Path(__file__).parent
-STATIC_DIR = BASE_DIR / "static"
-CERT_DIR = STATIC_DIR / "certificates"
-CERT_DIR.mkdir(parents=True, exist_ok=True)
-
-# Serve static files (so /static/... works in the browser)
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-print("STATIC_DIR:", STATIC_DIR)
-
+#Uploads certificates PDF only
+#Returns a URL under static/certificates for the frontend to open
+#Helped wiht upload cdertificate https://fastapi.tiangolo.com/tutorial/request-files/#file-parameters-with-uploadfile
 @app.post("/upload/certificate")
 async def upload_certificate(file: UploadFile = File(...)):
     # only PDFs for now
@@ -118,20 +175,40 @@ async def upload_certificate(file: UploadFile = File(...)):
     # save with random name to avoid collisions
     filename = f"{uuid4()}.pdf"
     dest = CERT_DIR / filename
+    #avoids reading entire file into memory at once
     with dest.open("wb") as out:
         shutil.copyfileobj(file.file, out)
 
     # return a path under /static so the frontend can open it directly
     return {"url": f"/static/certificates/{filename}"}
 
+ALLOWED_IMAGE_MIME = {"image/jpeg", "image/png", "image/webp"}
+EXT_BY_MIME = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+
+@app.post("/upload/photo")
+async def upload_photo(file: UploadFile = File(...)):
+    if file.content_type not in ALLOWED_IMAGE_MIME:
+        raise HTTPException(status_code=400, detail="Only JPG/PNG/WebP allowed")
+    filename = f"{uuid4()}{EXT_BY_MIME[file.content_type]}"
+    dest = IMAGE_DIR / filename
+    with dest.open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+    return {"url": f"/static/images/{filename}"}
 
 # POST endpoint to add a new user to the database
+#Create a new user
+#double /users /users/ - avoids “Not Found” errors
+#understanding the basice get and post method - https://www.youtube.com/watch?v=aSdVU9-SxH4&t=648s
 @app.post("/users", response_model=User)
 @app.post("/users/", response_model=User)
 def create_user(user: User):
     with Session(engine) as session:
         session.add(user)
-        session.commit()
+        session.commit()       # Go to DB
         session.refresh(user)  # Get the newly added user with its ID
         return user
 
@@ -144,76 +221,34 @@ def get_users():
         users = session.exec(select(User)).all()
         return users
 
+#Update a user by record id
+@app.put("/users/{user_id}", response_model=User)
+@app.put("/users/{user_id}/", response_model=User)
+def update_user(user_id: int, updated_user: User):
+    with Session(engine) as session:
+        user = session.get(User, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Update only the fields provided
+        for key, value in updated_user.dict(exclude_unset=True).items():
+            setattr(user, key, value)
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
 
 # Root endpoint to test if the backend is running
 @app.get("/")
 def root():
     return {"message": "Backend connected successfully!"}
 
-@app.post("/services", response_model=Service)
-@app.post("/services/", response_model=Service)
-def create_service(service: Service):
-    with Session(engine) as session:
-        # optional: ensure doula exists
-        doula = session.get(User, service.doula_id)
-        if not doula or doula.role != "doula":
-            raise HTTPException(status_code=400, detail="Invalid doula_id")
-        session.add(service)
-        session.commit()
-        session.refresh(service)
-        return service
-
-# List all services with filter
-@app.get("/services", response_model=List[Service])
-@app.get("/services/", response_model=List[Service])
-def list_services_filtered(
-    doula_id: Optional[int] = None,
-    is_bundle: Optional[bool] = None,
-    max_price: Optional[float] = Query(None, ge=0),
-    q: Optional[str] = None,                  # search name/description
-    sort_by: Optional[str] = Query(None, regex="^(price|name|duration)$"),
-):
-    with Session(engine) as session:
-        stmt = select(Service)
-
-        if doula_id is not None:
-            stmt = stmt.where(Service.doula_id == doula_id)
-
-        if is_bundle is not None:
-            stmt = stmt.where(Service.is_bundle == is_bundle)
-
-        if max_price is not None:
-            stmt = stmt.where(Service.price.is_not(None)).where(Service.price <= max_price)
-
-        if q:
-            like = f"%{q}%"
-            stmt = stmt.where(
-                (Service.name.ilike(like)) | (Service.description.ilike(like))
-            )
-
-        if sort_by:
-            col = {
-                "price": Service.price,
-                "name": Service.name,
-                "duration": Service.duration_minutes,
-            }[sort_by]
-            stmt = stmt.order_by(col)   # ascending
-
-        return session.exec(stmt).all()
-
-# List services by doula (good for profile screen)
-@app.get("/doulas/{doula_id}/services", response_model=List[Service])
-@app.get("/doulas/{doula_id}/services/", response_model=List[Service])
-def get_services_for_doula(doula_id: int):
-    with Session(engine) as session:
-        return session.exec(
-            select(Service).where(Service.doula_id == doula_id)
-        ).all()
 
 
-# main.py
-from datetime import datetime, timezone
-from fastapi import HTTPException
+#ChatGpt conversation= https://chatgpt.com/c/6909d8e0-3bc0-8327-81dc-c1a4bebc6b8b
+#AFter date error had to handle the sting to go to datetime format so needed help understanding parsa and to native
 import logging
 
 log = logging.getLogger("uvicorn.error")
@@ -246,32 +281,34 @@ def to_naive_utc(dt: datetime | None) -> datetime | None:
         return dt.astimezone(timezone.utc).replace(tzinfo=None)
     return dt
 
+# Create a booking
+#Validates mother_id/doula_id
+#Stores tz-naive datetimes not strings
 @app.post("/bookings", response_model=Booking)
 def create_booking(booking: Booking):
     with Session(engine) as session:
         mother = session.get(User, booking.mother_id)
         doula  = session.get(User, booking.doula_id)
+
         if not mother or mother.role != "mother":
             raise HTTPException(status_code=400, detail="Invalid mother_id")
         if not doula or doula.role != "doula":
             raise HTTPException(status_code=400, detail="Invalid doula_id")
 
-        # NEW: parse strings -> datetime
+        #  fill auth ids from linked users table
+        booking.mother_auth_id = mother.auth_id
+        booking.doula_auth_id = doula.auth_id
+
         starts = parse_iso_dt(booking.starts_at)
         ends   = parse_iso_dt(booking.ends_at)
 
-        # Normalize for MySQL
         booking.starts_at = to_naive_utc(starts)
         booking.ends_at   = to_naive_utc(ends)
 
-        try:
-            session.add(booking)
-            session.commit()
-            session.refresh(booking)
-            return booking
-        except Exception as e:
-            log.exception("BOOKING INSERT FAILED")
-            raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}")
+        session.add(booking)
+        session.commit()
+        session.refresh(booking)
+        return booking
 
 
 
@@ -284,17 +321,149 @@ def get_bookings():
         return session.exec(select(Booking)).all()
 
 # List bookings by mother
+
+
+#For a mother her bookings will include doula name
 @app.get("/bookings/by-mother/{mother_id}/details")
 def get_bookings_for_mother_detailed(mother_id: int):
-    with Session(engine) as session:
-        mother = session.get(User, mother_id)
-        if not mother or mother.role != "mother":
-            raise HTTPException(404, "Mother not found")
+   with Session(engine) as session:
+       mother = session.get(User, mother_id)
+       if not mother or mother.role != "mother":
+           raise HTTPException(404, "Mother not found")
 
+
+       bookings = session.exec(
+           select(Booking).where(Booking.mother_id == mother_id)
+       ).all()
+       # Ensures mothers can see full doula names after bookings not just ID
+       result = []
+       for b in bookings:
+           doula = session.get(User, b.doula_id)
+           result.append({
+               "booking_id": b.id,
+               "doula_name": doula.name if doula else None,
+               "verified": doula.verified if doula else None,
+               "starts_at": b.starts_at,
+               "ends_at": b.ends_at,
+               "mode": b.mode,
+               "status": b.status
+           })
+
+
+       return result
+
+
+
+
+# List bookings by doula
+#Helps the doula see who/where the booking is
+@app.get("/bookings/by-doula/{doula_id}")
+@app.get("/bookings/by-doula/{doula_id}/")
+def get_bookings_for_doula(doula_id: int):
+   with Session(engine) as session:
+       # ensure the doula exists
+       doula = session.get(User, doula_id)
+       if not doula or doula.role != "doula":
+           raise HTTPException(404, "Doula not found")
+
+
+       # get all bookings for this doula
+       bookings = session.exec(
+           select(Booking).where(Booking.doula_id == doula_id)
+       ).all()
+
+
+       # includes bookings with mother details not just id so its clear to the doula
+       result = []
+       for b in bookings:
+           mother = session.get(User, b.mother_id)
+           result.append({
+               "booking_id": b.id,
+               "mother_name": mother.name if mother else None,
+               "doula_name": doula.name if doula else None,
+               "location": mother.location if mother else None,
+               "starts_at": b.starts_at,
+               "ends_at": b.ends_at,
+               "mode": b.mode,
+               "status": b.status
+           })
+
+
+       return result
+
+from uuid import UUID
+
+# This endpoint makes sure every logged in user exists in our database.
+# It creates the user the first time they sign up or log in.
+# If the user already exists, it only fills in missing information.
+#https://chatgpt.com/c/69615ba9-1c28-8333-86a4-0f853cf8264b - helps create the bootstrapping as it was not showing up in my sql table
+class AuthBootstrap(SQLModel):
+    auth_id: UUID
+    role: str
+    name: str | None = None
+    location: str | None = None
+
+@app.post("/users/bootstrap")
+def bootstrap_user(payload: AuthBootstrap):
+    with Session(engine) as session:
+        existing = session.exec(
+            select(User).where(User.auth_id == payload.auth_id)
+        ).first()
+
+        # If user already exists, only update fields that are empty/default
+        if existing:
+            changed = False
+
+            # Update name if we got one and current is blank/default
+            if payload.name and (not existing.name or existing.name.strip() == "" or existing.name == "New user"):
+                existing.name = payload.name
+                changed = True
+
+            # Update location if we got one and current is blank/null
+            if payload.location is not None and (existing.location is None or str(existing.location).strip() == ""):
+                existing.location = payload.location
+                changed = True
+
+            # keep role in sync
+            if payload.role and existing.role != payload.role:
+                existing.role = payload.role
+                changed = True
+
+            if changed:
+                session.add(existing)
+                session.commit()
+                session.refresh(existing)
+
+            return existing
+
+        # Otherwise create new
+        user = User(
+            auth_id=payload.auth_id,
+            role=payload.role,
+            name=payload.name or "New user",
+            location=payload.location,
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
+#used the same as the other bookings but now using auth id for the log in
+@app.get("/bookings/by-mother-auth/{mother_auth_id}/details")
+def get_bookings_for_mother_by_auth_detailed(mother_auth_id: UUID):
+    with Session(engine) as session:
+        # map auth uuid  internal user
+        mother = session.exec(
+            select(User).where(User.auth_id == mother_auth_id)
+        ).first()
+        if not mother or mother.role != "mother":
+            raise HTTPException(404, "Mother not found for this auth_id")
+
+        # use existing int FK (works even if mother_auth_id is NULL)
         bookings = session.exec(
-            select(Booking).where(Booking.mother_id == mother_id)
+            select(Booking).where(Booking.mother_id == mother.id)
         ).all()
-        # Ensures mothers can see full doula names after bookings not just ID
+
         result = []
         for b in bookings:
             doula = session.get(User, b.doula_id)
@@ -305,105 +474,128 @@ def get_bookings_for_mother_detailed(mother_id: int):
                 "starts_at": b.starts_at,
                 "ends_at": b.ends_at,
                 "mode": b.mode,
-                "status": b.status
+                "status": b.status,
             })
-
         return result
 
 
-# List bookings by doula
-@app.get("/bookings/by-doula/{doula_id}")
-@app.get("/bookings/by-doula/{doula_id}/")
-def get_bookings_for_doula(doula_id: int):
+@app.get("/bookings/by-doula-auth/{doula_auth_id}")
+def get_bookings_for_doula_by_auth(doula_auth_id: UUID):
     with Session(engine) as session:
-        # ensure the doula exists
-        doula = session.get(User, doula_id)
+        # map auth uuid internal user
+        doula = session.exec(
+            select(User).where(User.auth_id == doula_auth_id)
+        ).first()
         if not doula or doula.role != "doula":
-            raise HTTPException(404, "Doula not found")
+            raise HTTPException(404, "Doula not found for this auth_id")
 
-        # get all bookings for this doula
+        # use existing int FK (works even if doula_auth_id is NULL)
         bookings = session.exec(
-            select(Booking).where(Booking.doula_id == doula_id)
+            select(Booking).where(Booking.doula_id == doula.id)
         ).all()
 
-        # includes bookings with mother details not just id so its clear to the doula
         result = []
         for b in bookings:
             mother = session.get(User, b.mother_id)
             result.append({
                 "booking_id": b.id,
                 "mother_name": mother.name if mother else None,
+                "doula_name": doula.name,
                 "location": mother.location if mother else None,
                 "starts_at": b.starts_at,
                 "ends_at": b.ends_at,
                 "mode": b.mode,
-                "status": b.status
+                "status": b.status,
             })
-
         return result
 
-@app.put("/users/{user_id}", response_model=User)
-@app.put("/users/{user_id}/", response_model=User)
-def update_user(user_id: int, updated_user: User):
+# small helper model for the status update body
+class BookingStatusUpdate(SQLModel):
+    status: str  # "requested" | "confirmed" | "declined" | "cancelled"
+
+#manage booking request
+@app.post("/bookings/{booking_id}/status", response_model=Booking)
+def update_booking_status(booking_id: int, payload: BookingStatusUpdate):
     with Session(engine) as session:
-        user = session.get(User, user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+        booking = session.get(Booking, booking_id)
+        if not booking:
+            raise HTTPException(status_code=404, detail="Booking not found")
 
-        # Update only the fields provided
-        for key, value in updated_user.dict(exclude_unset=True).items():
-            setattr(user, key, value)
+        allowed = {"requested", "confirmed", "declined", "cancelled", "paid"}
+        if payload.status not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status '{payload.status}'. "
+                       f"Must be one of {', '.join(sorted(allowed))}."
+            )
 
-        session.add(user)
+        booking.status = payload.status
+        session.add(booking)
         session.commit()
-        session.refresh(user)
-        return user
+        session.refresh(booking)
+        return booking
+
+#Returns filtered/sorted list of doulas
+# q searches name/location/qualifications/services
+#verirified toggles only verified doulas
 
 @app.get("/doulas", response_model=List[User])
 @app.get("/doulas/", response_model=List[User])
 def get_doulas(
-    verified: bool = True,
-    location: Optional[str] = None,
-    min_price: Optional[float] = None,
-    max_price: Optional[float] = None,
-    q: Optional[str] = None,   # for text search
-    sort_by: Optional[str] = None
+   verified: bool = True,
+   location: Optional[str] = None,
+   min_price: Optional[float] = None,
+   max_price: Optional[float] = None,
+   q: Optional[str] = None,   # for text search
+   sort_by: Optional[str] = None
 ):
-    with Session(engine) as session:
-        stmt = select(User).where(User.role == "doula")
+   with Session(engine) as session:
+       stmt = select(User).where(User.role == "doula")
 
-        if verified:
-            stmt = stmt.where(User.verified == True)
 
-        if location:
-            stmt = stmt.where(User.location.ilike(f"%{location}%"))
+       if verified:
+           stmt = stmt.where(User.verified == True)
 
-        # New min_price support
-        if min_price is not None:
-            stmt = stmt.where(User.price >= min_price)
 
-        if max_price is not None:
-            stmt = stmt.where(User.price <= max_price)
+       if location:
+           stmt = stmt.where(User.location.ilike(f"%{location}%"))
 
-        # Search term (name, location, etc.)
-        if q:
-            like = f"%{q}%"
-            stmt = stmt.where(
-                (User.name.ilike(like)) |
-                (User.location.ilike(like)) |
-                (User.qualifications.ilike(like)) |
-                (User.services.ilike(like))
-            )
 
-        # Sorting support
-        if sort_by == "price":
-            stmt = stmt.order_by(User.price)
-        elif sort_by == "name":
-            stmt = stmt.order_by(User.name)
-        elif sort_by == "location":
-            stmt = stmt.order_by(User.location)
+       # New min_price support - filter= Youtube vide https://www.youtube.com/watch?v=BR2rrnTavmY&t=24s
+       if min_price is not None:
+           stmt = stmt.where(User.price >= min_price)
 
-        return session.exec(stmt).all()
+
+       if max_price is not None:
+           stmt = stmt.where(User.price <= max_price)
+
+
+       # Search term (name, location, etc.)
+       # .ilike() performs a case-insensitive text match (similar to SQL ILIKE)
+       # e.g. filters users where "location" includes the search term, ignoring case
+       if q:
+           like = f"%{q}%"
+           stmt = stmt.where(
+               (User.name.ilike(like)) |
+               (User.location.ilike(like)) |
+               (User.qualifications.ilike(like)) |
+               (User.services.ilike(like))
+           )
+
+
+       # Sorting support
+       # stmt short for statement- it’s a variable that holds your SQL query before it gets sent to the database
+       if sort_by == "price":
+           stmt = stmt.order_by(User.price)
+       elif sort_by == "name":
+           stmt = stmt.order_by(User.name)
+       elif sort_by == "location":
+           stmt = stmt.order_by(User.location)
+
+
+       return session.exec(stmt).all()
+
+
 
 
 # Get a single doula by id for clickable profiles
@@ -417,18 +609,312 @@ def get_doula_by_id(doula_id: int):
         return doula
 
 
-from typing import List
 
-@app.get("/__debug/static")
-def debug_static():
-    cert_dir = STATIC_DIR / "certificates"
-    files: List[str] = []
-    if cert_dir.exists():
-        files = [p.name for p in cert_dir.glob("*")]
-    return {
-        "static_dir": str(STATIC_DIR),
-        "certificates_dir_exists": cert_dir.exists(),
-        "files_in_certificates": files,
-        "has_1_pdf": (cert_dir / "1.pdf").exists(),
+
+#ChatGPT debugging statement for certificates - https://chatgpt.com/c/690b7959-8ce0-8333-81a2-da437a26163b
+@app.get("/debug/certificates")
+async def debug_certificates():
+    """
+    Debug endpoint to check the certificate uploads folder.
+
+    Returns JSON showing:
+      - absolute path being checked
+      - whether the folder exists
+      - list of files inside
+      - whether 1.pdf exists
+    """
+    # Folder we want to check
+    cert_dir = Path("backend/static/certificates").resolve()
+
+    # Check if it exists and is a directory
+    exists = cert_dir.exists() and cert_dir.is_dir()
+
+    # If it exists, list files (only actual files, not subdirectories)
+    files = sorted([p.name for p in cert_dir.iterdir() if p.is_file()]) if exists else []
+
+    # Build response
+    return JSONResponse({
+        "path": str(cert_dir),       # full absolute path
+        "exists": exists,            # does the folder exist?
+        "files": files,              # list of filenames
+        "has_1_pdf": "1.pdf" in files,  # quick check for 1.pdf
+        "count": len(files)          # number of files found
+    })
+
+#https://www.youtube.com/watch?v=nZhAW-JQ8NM- helped back end for the chat and chat.py
+# Single community chat room for all moms and doulas
+@app.get("/debug/routes")
+def debug_routes():
+    http_paths = []
+    ws_paths = []
+
+    for r in app.routes:
+        if isinstance(r, APIRoute):
+            http_paths.append(r.path)
+        else:
+            # WebsocketRoute is a subclass of fastapi.routing.Route
+            if hasattr(r, "endpoint") and "websocket" in str(type(r)).lower():
+                ws_paths.append(r.path)
+
+    return {"http": http_paths, "websocket": ws_paths}
+
+
+
+
+# Single "community" chat room for all moms and doulas
+#
+# keep last 100 messages in memory
+chat_history = deque(maxlen=100)
+
+chat_history = deque(maxlen=100)
+
+@app.websocket("/chat")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+
+    #  Send chat history as a normal list (JSON serializable)
+    await websocket.send_json(list(chat_history))
+
+    try:
+        while True:
+            data = await websocket.receive_json()  # {sender, text, time}
+            chat_history.append(data)
+            await manager.broadcast(data)
+    except WebSocketDisconnect:
+        await manager.disconnect(websocket)
+
+
+
+# Voice search endpoint: accepts an audio file, sends it to OpenAI Whisper,
+# and returns the text for the mobile app to use as a search query.
+#Code mainly from :https://medium.com/@bnhminh_38309/build-a-fastapi-backend-for-speech-to-text-transcription-with-openai-whisper-4de7f082ab6e
+#Used to help with part of my error handling for the files-https://chatgpt.com/c/691b2910-cc30-8325-bc1a-027aa7947a2c
+@app.post("/voice-search")
+async def voice_search(file: UploadFile = File(...)):
+    if not file:
+        # Ensure a file was actually uploaded
+        raise HTTPException(status_code=400, detail="No file uploaded")
+
+    # Read audio file into memory
+    audio_data = await file.read()
+    print("VOICE-SEARCH file:", file.filename, file.content_type, "bytes:", len(audio_data))
+    print("OPENAI_API_KEY loaded?", bool(OPENAI_API_KEY))
+
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="Missing OPENAI_API_KEY")
+
+    # Prepare request headers and form data for Whisper
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"}
+    files = {
+        "file": (file.filename, audio_data, file.content_type),
+        "model": (None, "whisper-1"),
+        "response_format": (None, "json"),
+        "language": (None, "en"), # focring english
     }
+
+    # Send request to OpenAI Whisper API
+    response = requests.post(
+        "https://api.openai.com/v1/audio/transcriptions",
+        headers=headers,
+        files=files,
+    )
+    # Try to read the response as JSON; use raw text if that fails
+    try:
+        data = response.json()
+    except Exception:
+        data = {"raw": response.text}
+
+    print("OpenAI status:", response.status_code)
+    print("OpenAI body:", data)
+    # Handle any error returned by OpenAI
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=data,
+        )
+    # Extract transcription text from JSON
+    transcription = data.get("text", "")
+    return JSONResponse(content={"text": transcription})
+
+# Stripe Checkout success and cancel redirect handlers
+@app.get("/payments/success")
+def payments_success():
+    return {"ok": True, "message": "Payment completed. You can return to the app."}
+
+@app.get("/payments/cancel")
+def payments_cancel():
+    return {"ok": False, "message": "Payment cancelled. You can return to the app."}
+
+
+#https://docs.stripe.com/checkout/quickstart?lang=python
+# Similar to Stripe reference: creates a Stripe Checkout Session in payment mode
+# Added: booking validation, dynamic pricing, metadata, and API-style response
+# https://medium.com/@abdulikram/building-a-payment-backend-with-fastapi-stripe-checkout-and-webhooks-08dc15a32010
+# Core Checkout Session structure follows the reference; booking logic and validation are custom
+
+@app.post("/payments/checkout")
+def payments_checkout(payload: CheckoutRequest):
+    with Session(engine) as session:
+        booking = session.get(Booking, payload.booking_id)
+        if not booking:
+            raise HTTPException(404, "Booking not found")
+
+        if booking.status != "confirmed":
+            raise HTTPException(400, "Booking must be confirmed before payment")
+
+        if booking.status == "paid":
+            raise HTTPException(400, "Booking already paid")
+
+        doula = session.get(User, booking.doula_id)
+        if not doula:
+            raise HTTPException(400, "Invalid doula_id")
+
+        amount_cents = int(float(doula.price) * 100)
+
+
+        success_url = os.getenv(
+            "STRIPE_SUCCESS_URL",
+            "https://checkout.stripe.com/complete",
+        )
+        cancel_url = os.getenv(
+            "STRIPE_CANCEL_URL",
+            "https://checkout.stripe.com/cancel",
+        )
+
+        # IMPORTANT:
+        # If your Booking model has booking_id, store that.
+        # Otherwise store booking.id (primary key).
+        booking_meta_id = getattr(booking, "booking_id", None) or booking.id
+
+        checkout = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "eur",
+                        "product_data": {"name": f"Consultation with {doula.name}"},
+                        "unit_amount": amount_cents,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            metadata={"booking_id": str(booking_meta_id)},
+            success_url=success_url,
+            cancel_url=cancel_url,
+        )
+
+        return {"url": checkout.url}
+
+@app.post("/payments/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+    secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, secret)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    event_type = event["type"]
+    obj = event["data"]["object"]
+
+    print("WEBHOOK EVENT TYPE:", event_type)
+
+    booking_id = None
+
+    # 1) Preferred: checkout session completed (has metadata booking_id)
+    if event_type == "checkout.session.completed":
+        booking_id = obj.get("metadata", {}).get("booking_id")
+
+    # 2) Also handle payment intent succeeded
+    # This may not include booking metadata unless you set it,
+    if event_type == "payment_intent.succeeded":
+        pi_id = obj.get("id")
+        try:
+            sessions = stripe.checkout.Session.list(payment_intent=pi_id, limit=1)
+            if sessions.data:
+                booking_id = sessions.data[0].get("metadata", {}).get("booking_id")
+        except Exception as e:
+            print("Could not map payment_intent to session:", e)
+
+    if booking_id:
+        with Session(engine) as db:
+            booking = db.get(Booking, int(booking_id))
+            if booking and booking.status in ("confirmed",):
+                booking.status = "paid"
+                db.add(booking)
+                db.commit()
+                print("Booking marked paid:", booking_id)
+
+    return {"received": True}
+
+# Helper endpoint to check review eligibility
+# Uses same booking-status business rule as POST /reviews (must be paid)
+# Follows same query/validation pattern used across booking endpoints
+@app.get("/reviews/can-review")
+def can_review(mother_id: int, doula_id: int, session: Session = Depends(get_session)):
+    booking = session.exec(
+        select(Booking).where(
+            Booking.mother_id == mother_id,
+            Booking.doula_id == doula_id,
+            Booking.status.in_(["paid"]) # only allowed leave a review if you have paid
+        )
+    ).first()
+
+    return {
+        "can_review": booking is not None,
+        "booking_id": booking.id if booking else None
+    }
+
+# Similar to POST /bookings/{booking_id}/status:
+# follows the same fetch to validate  pattern
+@app.post("/reviews")
+def create_review(payload: ReviewCreate, session: Session = Depends(get_session)):
+    # Find the booking being reviewed
+    booking = session.get(Booking, payload.booking_id)
+    if not booking:
+        raise HTTPException(404, "Booking not found")
+
+    # Only allow review if booking was paid
+    if booking.status not in ["paid"]:
+        raise HTTPException(403, "You can only review after a paid booking.")
+
+    # Create the review row
+    review = Review(
+        booking_id=payload.booking_id,
+        mother_id=booking.mother_id,
+        doula_id=booking.doula_id,
+        rating=payload.rating,
+        comment=payload.comment,
+    )
+
+    session.add(review)
+    session.commit()
+    session.refresh(review)
+    return review
+
+#mothers can now see reviews left by mothers on the doula profile
+@app.get("/reviews/by-doula/{doula_id}")
+def reviews_by_doula(doula_id: int, session: Session = Depends(get_session)):
+    # Same query pattern used in booking retrieval
+    reviews = session.exec(
+        select(Review)
+        .where(Review.doula_id == doula_id)
+        .order_by(Review.created_at.desc())
+    ).all()
+
+
+    # Similar to booking responses:
+    # expose only fields safe for public consumption
+    return [
+        {
+            "id": r.id,
+            "rating": r.rating,
+            "comment": r.comment,
+            "created_at": r.created_at,
+        }
+        for r in reviews
+    ]
+
 

@@ -1,0 +1,21 @@
+# Environment variables (secrets)
+.env
+backend/.env
+
+# Node dependencies
+node_modules/
+mobile/node_modules/
+
+# Python virtual environment
+.venv/
+
+# Expo
+.expo/
+
+# OS / editor junk
+desktop.ini
+.idea/
+.vscode/
+
+# JetBrains / IntelliJ / WebStorm
+.idea/

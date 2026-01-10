@@ -1,8 +1,9 @@
-#From Youtube Video "How to connect to an online MySQL database using FastAPI"
-from sqlmodel import SQLModel, Field
+#From Youtube Video "How to connect to an online MySQL database using FastAPI"-https://www.youtube.com/watch?v=QuaNqXi-OwM
 from typing import Optional
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import String, Text, DECIMAL
+from uuid import UUID
+
 
 # This class defines the structure of the "users" table in the MySQL database
 # Each attribute below represents a column in the table
@@ -26,5 +27,8 @@ class User(SQLModel, table=True):
     certificate_url: Optional[str] = None
     price_caption: Optional[str] = None
     bundle_caption: Optional[str] = None
+    auth_id: Optional[UUID] = Field(default=None, index=True)
+
+
 
 
