@@ -9,6 +9,7 @@
 
     React Native components used in this screen:
      - TouchableOpacity (pressable button): https://reactnative.dev/docs/touchableopacity
+     - Navigate : https://reactnavigation.org/docs/navigation-actions/ - seen for each menu option
      - TextInput (form fields):              https://reactnative.dev/docs/textinput
      - View - base container for layout (like a <div> on web):  https://reactnative.dev/docs/view
      - Text - displays static text: https://reactnative.dev/docs/text
@@ -20,7 +21,7 @@
     This Home screen acts as the entry point of the app,
     allowing users to browse doulas or create a new profile.
 */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -32,6 +33,9 @@ import {
 import { CommonActions } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { signOut } from "../auth";
+import { supabase } from "../supabaseClient";
+import { checkMessageNotifications } from "../notifications";
+
 
 const COLORS = {
   background: "#FFF7F2",
@@ -46,6 +50,22 @@ const LOGO = require("../assets/doulacare-logo.png");
 
 export default function HomeScreen({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+  const run = async () => {
+    const { data } = await supabase.auth.getSession();
+    const authId = data?.session?.user?.id;
+    if (!authId) return;
+
+    //  DIFFERENT FROM DOULA: role is "mother"
+    const count = await checkMessageNotifications(authId, "mother");
+    setUnreadCount(count);
+  };
+
+  run();
+}, []);
 
   // Open and close menu helpers
   const openMenu = () => setMenuVisible(true);
@@ -103,12 +123,36 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
+  // Navigate to favourites screen for the logged-in mother
+const goMotherFavourites = () => {
+  closeMenu();
+  navigation.dispatch(
+    CommonActions.navigate({
+      name: "Doulas",
+      params: { screen: "MotherFavourites" },
+    })
+  );
+};
+
+const goMessages = () => {
+  closeMenu();
+  navigation.dispatch(
+    CommonActions.navigate({
+      name: "Doulas",
+      params: { screen: "MessagesInbox", params: { role: "mother" } },
+    })
+  );
+};
+
+
+
   // logout helper
   const doLogout = async () => {
     await signOut();
     closeMenu();
     navigation.reset({ index: 0, routes: [{ name: "AppGate" }] });
   };
+
 
   return (
     <View style={styles.container}>
@@ -132,7 +176,7 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* OVERLAY MENU */}
+      {/* OVERLAY MENU - https://reactnative.dev/docs/modal*/}
       <Modal
         visible={menuVisible}
         transparent
@@ -199,6 +243,29 @@ export default function HomeScreen({ navigation }) {
                 />
                 <Text style={styles.menuItemText}>Postpartum Tips</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={goMotherFavourites}>
+  <Ionicons
+    name="heart"
+    size={20}
+    color={COLORS.accent}
+    style={styles.menuIcon}
+  />
+  <Text style={styles.menuItemText}>My Favourites</Text>
+</TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={goMessages}>
+  <Ionicons
+    name="chatbubble-ellipses-outline"
+    size={20}
+    color={COLORS.accent}
+    style={styles.menuIcon}
+  />
+  <Text style={styles.menuItemText}>
+    Messages{unreadCount > 0 ? ` (${unreadCount})` : ""}
+  </Text>
+</TouchableOpacity>
+
 
               {/* LOGOUT */}
               <TouchableOpacity style={styles.menuItem} onPress={doLogout}>

@@ -1,5 +1,5 @@
 /*
-  PostpartumTipsScreen – Postpartum Information & Guidance (React Native)
+  PostpartumTipsScreen – Postpartum Information and Guidance
 
   What this screen does:
   - Provides mothers with calm, reliable postpartum information
@@ -35,10 +35,7 @@ import {
   Linking,
 } from "react-native";
 
-/*
-  Colour palette reused from HelpScreen
-  Ensures visual consistency across support-related screens
-*/
+
 const COLORS = {
   background: "#FFF7F2",
   primary: "#F4A38C",

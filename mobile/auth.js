@@ -1,5 +1,5 @@
 // Supabase authentication helpers
-// Based on Supabase Auth (Email & Password) documentation:
+// Based on Supabase Auth (Email and Password) documentation:
 // https://supabase.com/docs/guides/auth/auth-email
 // Uses Supabase JS client methods for sign-in, sign-up, session, and sign-out
 // Includes custom helper to fetch user role from profiles table
@@ -56,7 +56,7 @@ export const getMyRole = async () => {
   const user = sessionData?.session?.user;
   if (!user) return null;
 
-  // Query application-specific profile data
+
   // Based on Supabase Database select syntax
   const { data, error } = await supabase
     .from("profiles")
@@ -68,7 +68,7 @@ export const getMyRole = async () => {
   return data?.role ?? null;
 };
 
-// Map auth uid -> your app users table (int id)
+// Map auth uid to  app users table (int id)
 export const getMyAppUserId = async () => {
   const user = await getCurrentUser();
   if (!user) return null;
@@ -83,6 +83,9 @@ export const getMyAppUserId = async () => {
   return data?.id ?? null; // integer
 };
 
+// Get the currently authenticated Supabase user (auth UUID)
+// Fetch the matching profile row from the public profiles table
+  // This table stores app-specific data (e.g. role) separate from auth
 export const getMyProfile = async () => {
   const user = await getCurrentUser();
   if (!user) return null;

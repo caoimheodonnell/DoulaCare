@@ -10,6 +10,7 @@ Same as HomeScreen but for Doulas not Mothers
     React Native components used in this screen:
      - TouchableOpacity (pressable button): https://reactnative.dev/docs/touchableopacity
      - TextInput (form fields):              https://reactnative.dev/docs/textinput
+     - Navigate :https://reactnavigation.org/docs/navigation-actions/ - seen for each menu option
      - View - base container for layout (like a <div> on web):  https://reactnative.dev/docs/view
      - Text - displays static text: https://reactnative.dev/docs/text
      - Image - renders the local DoulaCare logo: https://reactnative.dev/docs/image
@@ -20,11 +21,14 @@ Same as HomeScreen but for Doulas not Mothers
     This Home screen acts as the doulas entry point of the app,
 
 */
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Image, Modal } from "react-native";
 import { CommonActions } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { signOut } from "../auth";
+import { checkMessageNotifications } from "../notifications";
+import { supabase } from "../supabaseClient";
+
 
 const COLORS = {
   background: "#FFF7F2",
@@ -42,6 +46,23 @@ export default function HomeDoula({ navigation, route }) {
 
   // if you pass doulaId through navigation
   const doulaId = route?.params?.doulaId;
+
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Check for unread messages when doula opens home screen
+  useEffect(() => {
+  const run = async () => {
+    const { data } = await supabase.auth.getSession();
+    const authId = data?.session?.user?.id;
+    if (!authId) return;
+
+    const count = await checkMessageNotifications(authId, "doula");
+    setUnreadCount(count);
+  };
+
+  run();
+}, []);
+
 
 
   // Controls visibility of the menu modal
@@ -86,6 +107,17 @@ export default function HomeDoula({ navigation, route }) {
     );
   };
 
+ const goMessages = () => {
+  closeMenu();
+  navigation.dispatch(
+    CommonActions.navigate({
+      name: "Doulas",
+      params: { screen: "MessagesInbox", params: { role: "doula" } },
+    })
+  );
+};
+
+
   //  logout helper
   const doLogout = async () => {
     await signOut();
@@ -113,7 +145,7 @@ export default function HomeDoula({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
-      {/* OVERLAY MENU */}
+      {/* OVERLAY MENU - used the modal reference https://reactnative.dev/docs/modal*/}
       <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={closeMenu}>
         <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={closeMenu}>
           <TouchableOpacity activeOpacity={1} onPress={() => {}}>
@@ -144,6 +176,18 @@ export default function HomeDoula({ navigation, route }) {
                 <Ionicons name="help-circle-outline" size={20} color={COLORS.accent} style={styles.menuIcon} />
                 <Text style={styles.menuItemText}>Helplines & Support</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={goMessages}>
+  <Ionicons
+    name="chatbubble-ellipses-outline"
+    size={20}
+    color={COLORS.accent}
+    style={styles.menuIcon}
+  />
+  <Text style={styles.menuItemText}>
+    Messages{unreadCount > 0 ? ` (${unreadCount})` : ""}
+  </Text>
+</TouchableOpacity>
+
               {/*  LOGOUT */}
               <TouchableOpacity style={styles.menuItem} onPress={doLogout}>
                 <Ionicons

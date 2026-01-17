@@ -1,5 +1,5 @@
 /*
-  (MyBookingsScreen.jsx) — Doula view of all booking requests and accept and decline
+  (MyBookingsScreen.jsx) - Doula view of all booking requests and accept and decline
 
   How this was adapted / designed:
   - Inspired by my AddUserFormMobile pattern:

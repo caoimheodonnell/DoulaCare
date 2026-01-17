@@ -44,6 +44,11 @@ import ChatScreen from "./components/ChatScreen";
 import HelpScreen from "./components/HelpScreen";
 import PostpartumTipsScreen from "./components/PostpartumTipsScreen";
 import LeaveReview from "./components/LeaveReview";
+import MotherFavouritesScreen from "./components/MotherFavouritesScreen";
+import PrivateChatScreen from "./components/PrivateChatScreen";
+import MessagesInboxScreen from "./components/MessagesInboxScreen";
+
+
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -108,6 +113,23 @@ function DoulasStackScreen() {
         component={LeaveReview}
         options={{ title: "Leave a Review" }}
       />
+        <Stack.Screen
+  name="MotherFavourites"
+  component={MotherFavouritesScreen}
+  options={{ title: "My Favourites" }}
+/>
+        <Stack.Screen
+  name="PrivateChat"
+  component={PrivateChatScreen}
+  options={{ title: "Messages" }}
+/>
+<Stack.Screen
+  name="MessagesInbox"
+  component={MessagesInboxScreen}
+  options={{ title: "Messages" }}
+/>
+
+
     </Stack.Navigator>
   );
 }

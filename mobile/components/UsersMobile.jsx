@@ -1,6 +1,6 @@
 // components/UsersMobile.jsx
 /*
-  UsersMobile.jsx - DoulaCare list screen (React Native)
+  UsersMobile.jsx - DoulaCare list screen
 
   Sources / References:
   - YouTube: "React Native tutorial #56 - List with API data" (list + API fetch pattern) https://www.youtube.com/watch?v=242Tc1ezWm0&t=262s
@@ -123,6 +123,11 @@ const [canReviewMap, setCanReviewMap] = useState({});
   const mediaRecorderRef = useRef(null);
   const webChunksRef = useRef([]);
 
+  // Favourite Section
+  const [motherAuthId, setMotherAuthId] = useState(null); // Supabase UUID string
+const [favMap, setFavMap] = useState({});               // { [doulaId]: true }
+const [togglingFav, setTogglingFav] = useState({});     // { [doulaId]: true }
+
 
   //  Price slider state - https://www.youtube.com/watch?v=BR2rrnTavmY&t=24s*/}
   const [minPrice, setMinPrice] = useState(0);
@@ -181,6 +186,65 @@ const [canReviewMap, setCanReviewMap] = useState({});
 }, [motherId]);
 
 
+//Favourites
+useEffect(() => {
+  const loadAuth = async () => {
+    const { data } = await supabase.auth.getSession();
+    setMotherAuthId(data?.session?.user?.id || null);
+  };
+  loadAuth();
+}, []);
+
+  //favourites
+const loadFavourites = async () => {
+  if (!motherAuthId) return;
+  try {
+    const res = await api.get(`/favourites/by-mother-auth/${motherAuthId}/details`);
+    const list = res.data || [];
+    const map = {};
+    list.forEach((f) => {
+      map[f.doula_id] = true;
+    });
+    setFavMap(map);
+  } catch (e) {
+    console.warn("Failed to load favourites", e?.message || e);
+    setFavMap({});
+  }
+};
+
+useEffect(() => {
+  if (motherAuthId) loadFavourites();
+}, [motherAuthId]);
+
+const toggleFavourite = async (doulaId) => {
+  if (!motherAuthId) {
+    alert("Please log in as a mother to favourite a doula.");
+    return;
+  }
+
+  try {
+    setTogglingFav((p) => ({ ...p, [doulaId]: true }));
+
+    const res = await api.post(`/favourites/by-mother-auth/${motherAuthId}/toggle`, {
+      doula_id: doulaId,
+    });
+
+    const nowFav = !!res.data?.favourited;
+
+    setFavMap((prev) => {
+      const next = { ...prev };
+      if (nowFav) next[doulaId] = true;
+      else delete next[doulaId];
+      return next;
+    });
+  } catch (e) {
+    console.warn("Toggle favourite failed", e?.message || e);
+    alert("Could not update favourites.");
+  } finally {
+    setTogglingFav((p) => ({ ...p, [doulaId]: false }));
+  }
+};
+
   // React to header search param
   // ChatGPT: https://chatgpt.com/c/68f40a4c-6598-8325-9399-b695370996ed react to header/route search param (navbar passes search via nav params)
   useEffect(() => {
@@ -216,6 +280,7 @@ const [canReviewMap, setCanReviewMap] = useState({});
     setMaxPrice(PRICE_MAX);
     await fetchUsers({ q: search.trim() || undefined });
   };
+
 
 
 // Web recording logic inspired by a basic MediaRecorder example -https://developer.mozilla.org/en-US/docs/Web/API/MediaStream_Recording_API
@@ -304,6 +369,7 @@ const [canReviewMap, setCanReviewMap] = useState({});
     setLoadingVoice(false);
   }
 };
+
 
 
   //stop recording, send to /voice-search, update search and results
@@ -635,55 +701,108 @@ useEffect(() => {
 
         {/* User list */}
         {/* YouTube #56 pattern  https://www.youtube.com/watch?v=242Tc1ezWm0&t=262s: FlatList bound to fetched array, row to details */}
-        <FlatList
+   <FlatList
   data={users}
   keyExtractor={(u) => String(u.id)}
   ItemSeparatorComponent={() => <View style={styles.separator} />}
-  renderItem={({ item: u }) => (
-    <TouchableOpacity
-      onPress={() => nav.navigate("Details", { id: u.id })}
-      style={styles.userRow}
-    >
-      <Image
-        source={{ uri: toAbsolute(u.photo_url) || PLACEHOLDER }}
-        style={styles.avatar}
-      />
+  renderItem={({ item: u }) => {
+    const isFav = !!favMap[u.id];
+    const isBusy = !!togglingFav[u.id];
 
-      <View style={{ flex: 1 }}>
-        <Text style={styles.userName}>{u.name}</Text>
-        <Text style={styles.userMeta}>
-          {u.location} — €{u.price}
-        </Text>
-
-        <Text
-          style={[
-            styles.verifiedText,
-            { color: u.verified ? "green" : "gray" },
-          ]}
+    return (
+      <View style={styles.userRow}>
+        {/* LEFT: tap opens details */}
+        <TouchableOpacity
+          style={{ flexDirection: "row", flex: 1, alignItems: "center" }}
+          onPress={() => nav.navigate("Details", { id: u.id })}
+          activeOpacity={0.8}
         >
-          {u.verified ? "Verified" : "Not verified"}
-        </Text>
+          <Image
+            source={{ uri: toAbsolute(u.photo_url) || PLACEHOLDER }}
+            style={styles.avatar}
+          />
 
-        {/* Only show review button if mother has a paid booking with this doula */}
-        {canReviewMap[u.id]?.canReview && (
+          <View style={{ flex: 1 }}>
+            <Text style={styles.userName}>{u.name}</Text>
+
+            <Text style={styles.userMeta}>
+              {u.location} — €{u.price}
+            </Text>
+
+            <Text
+              style={[
+                styles.verifiedText,
+                { color: u.verified ? "green" : "gray" },
+              ]}
+            >
+              {u.verified ? "Verified" : "Not verified"}
+            </Text>
+
+            {/* Review button (unchanged) */}
+            {canReviewMap[u.id]?.canReview && (
+              <TouchableOpacity
+                style={[
+                  styles.searchBtn,
+                  { alignSelf: "flex-start", marginTop: 8 },
+                ]}
+                onPress={() =>
+                  nav.navigate("LeaveReview", {
+                    bookingId: canReviewMap[u.id].bookingId,
+                  })
+                }
+              >
+                <Text style={styles.searchBtnText}>Leave a Review</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* RIGHT: icons (message + favourite) */}
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {/* Message icon */}
           <TouchableOpacity
-            style={[styles.searchBtn, { alignSelf: "flex-start", marginTop: 8 }]}
             onPress={() =>
-              nav.navigate("LeaveReview", {
-                bookingId: canReviewMap[u.id].bookingId,
+              nav.navigate("PrivateChat", {
+                doulaId: u.id,
+                doulaAuthId: u.auth_id,
+                doulaName: u.name,
               })
             }
+            style={{ padding: 10 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={styles.searchBtnText}>Leave a Review</Text>
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={22}
+              color={COLORS.accent}
+            />
           </TouchableOpacity>
-        )}
+
+          {/* Heart icon */}
+          <TouchableOpacity
+            onPress={() => toggleFavourite(u.id)}
+            disabled={isBusy}
+            style={{ padding: 10 }}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Ionicons
+              name={isFav ? "heart" : "heart-outline"}
+              size={22}
+              color={isFav ? COLORS.primary : COLORS.accent}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
-    </TouchableOpacity>
-  )}
+    );
+  }}
   ListEmptyComponent={
-    <Text style={{ marginTop: 8, color: "#2F2A2A" }}>No users found.</Text>
+    <Text style={{ marginTop: 8, color: "#2F2A2A" }}>
+      No users found.
+    </Text>
   }
 />
+
+
 
 
       </SafeAreaView>

@@ -4,7 +4,7 @@
   - Kept the same overall form pattern as AddUserFormMobile:
   -Added cross-platform date/time selection:
       - Native iOS/Android = @react-native-community/datetimepicker
-      - Web= hidden <input type="date"> + <input type="time">
+      - Web= hidden <input type="date"> and <input type="time">
   - Added “Lookup Mother” convenience:
       - Similar to how AddUser handled inputs before posting, but here we search
         /users for a mother whose name/email/location matches the user’s search

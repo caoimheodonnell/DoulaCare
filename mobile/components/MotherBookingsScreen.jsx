@@ -57,6 +57,9 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../supabaseClient";
 
+
+
+
 const COLORS = {
   background: "#FFF7F2",
   primary: "#F4A38C",
@@ -169,24 +172,19 @@ export default function MotherBookingsScreen() {
       const prev = prevBookingsRef.current;
 
       // 1) already-notified IDs from storage
-      const notifiedIds = await getNotifiedIds();
+      const notifiedIds = (await getNotifiedIds()).map(String);
 
       // 2) detect newly confirmed this session
       const newlyConfirmed = list.filter((b) => {
-        if (!b.starts_at) return false;
-        if (b.status !== "confirmed") return false;
+  if (!b.starts_at) return false;
+  if (b.status !== "confirmed") return false;
 
-        const before = prev.find((p) => p.booking_id === b.booking_id);
-        const wasPreviouslyConfirmed = before && before.status === "confirmed";
-        const hasNotifiedBefore = notifiedIds.includes(b.booking_id);
+  const id = String(b.booking_id);
 
+  // Notify once per booking if we have never notified it before
+  return !notifiedIds.includes(id);
+});
 
-     // Only treat as new if:
-     // wasn't confirmed before in this session, AND
-     // we haven't already sent notification for this booking_id
-
-        return !wasPreviouslyConfirmed && !hasNotifiedBefore;
-      });
 
       // 3) schedule notifications for newly confirmed
       for (const b of newlyConfirmed) {
@@ -215,7 +213,8 @@ export default function MotherBookingsScreen() {
 
       // 4) mark notified so we don’t repeat
       if (newlyConfirmed.length > 0) {
-        await addNotifiedIds(newlyConfirmed.map((b) => b.booking_id));
+        await addNotifiedIds(newlyConfirmed.map((b) => String(b.booking_id)));
+
       }
 
       // update state

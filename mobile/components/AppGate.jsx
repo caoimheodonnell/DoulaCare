@@ -1,7 +1,7 @@
 /*
   AppGate - Authentication and Role Routing Gate
 
-  What this component does:
+  What this  does:
   - Runs once on app launch after login.
   - Checks if a user is authenticated and retrieves their role.
   - Redirects unauthenticated users to Login.

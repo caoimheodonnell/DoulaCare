@@ -41,6 +41,9 @@
 */
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "./api";
+
 
 // same idea as the reference show a visible alert
 // Controls how notifications appear while the app is open
@@ -170,4 +173,29 @@ export async function scheduleDoulaBookingReminder(startsAt, motherName) {
     fifteenMinutesBefore,
     `You have a booking with ${name} in 15 minutes.`
   );
+}
+
+const MSG_UNREAD_KEY = "msg_unread_count";
+
+export async function checkMessageNotifications(userAuthId, role) {
+  const res = await api.get("/messages/unread-count", {
+    params: { user_auth_id: userAuthId, role },
+  });
+
+  const count = res.data?.count ?? 0;
+
+  const prevRaw = await AsyncStorage.getItem(MSG_UNREAD_KEY);
+  const prev = prevRaw ? Number(prevRaw) : 0;
+
+  if (count > prev) {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "New message",
+        body: `You have ${count} unread message${count === 1 ? "" : "s"}.`,
+      },
+      trigger: null,
+    });
+  }
+
+  await AsyncStorage.setItem(MSG_UNREAD_KEY, String(count));
 }

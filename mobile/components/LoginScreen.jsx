@@ -10,7 +10,7 @@
   - Uses controlled TextInput fields with useState.
   - Uses React Native UI components (View/Text/TextInput/TouchableOpacity/Image).
   - Uses native alerts for user feedback (Alert.alert or showMessage wrapper).
-  - Submits user-entered form data to a backend service (Auth vs FastAPI).
+  - Submits user-entered form data to a backend service.
 
   References used:
   - React Native components:
@@ -23,6 +23,8 @@
     https://supabase.com/docs/guides/auth/auth-email
   - React Navigation (navigation/reset patterns):
     https://reactnavigation.org/docs/navigation-actions
+    -Get Session
+    https://supabase.com/docs/reference/javascript/auth-getsession
 */
 import React, { useState } from "react";
 import {
@@ -57,6 +59,7 @@ export default function LoginScreen({ navigation }) {
   const onLogin = async () => {
     try {
       // 1) Sign in
+      // Reference: Supabase Auth email/password sign-in
       await signIn(email.trim().toLowerCase(), password);
 
       // 2) Get role (from Supabase user_metadata)
@@ -64,15 +67,17 @@ export default function LoginScreen({ navigation }) {
       if (!role) {
         Alert.alert(
           "Login incomplete",
-          "Your account has no role yet. Please try again."
+          "Your account does not exist yet or Incorrect input. Please try again."
         );
         return;
       }
 
       // 3) Ensure this auth user exists in your SQL users table
+      // https://supabase.com/docs/reference/javascript/auth-getsession
       const { data } = await supabase.auth.getSession();
       const authId = data?.session?.user?.id;
 
+      // call the backend to create/update the SQL user row
       if (authId) {
         await api.post("/users/bootstrap", {
   auth_id: authId,
@@ -87,6 +92,7 @@ export default function LoginScreen({ navigation }) {
         routes: [{ name: "MainTabs", params: { role } }],
       });
     } catch (e) {
+      // Show a simple error message if login fails
       Alert.alert("Login failed", e?.message || "Unknown error");
     }
   };
@@ -97,6 +103,7 @@ export default function LoginScreen({ navigation }) {
       <Text style={styles.title}>DoulaCare</Text>
       <Text style={styles.subtitle}>Log in to continue</Text>
 
+      {/* Email input  */}
       <TextInput
         style={styles.input}
         placeholder="Email"
@@ -106,6 +113,7 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setEmail}
       />
 
+      {/* Password input */}
       <TextInput
         style={styles.input}
         placeholder="Password"
@@ -114,10 +122,12 @@ export default function LoginScreen({ navigation }) {
         onChangeText={setPassword}
       />
 
+      {/* Login button */}
       <TouchableOpacity style={styles.primaryButton} onPress={onLogin}>
         <Text style={styles.primaryButtonText}>Log In</Text>
       </TouchableOpacity>
 
+      {/* Link to Register screen */}
       <TouchableOpacity onPress={() => navigation.navigate("Register")}>
         <Text style={styles.link}>Create an account</Text>
       </TouchableOpacity>

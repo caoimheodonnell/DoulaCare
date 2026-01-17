@@ -9,7 +9,7 @@
   How I adapted this (similar patterns to AddUserFormMobile):
    - Uses controlled inputs with useState (same pattern as Add User form).
    - Uses axios instance (api.js) to POST to FastAPI.
-   - Uses native alerts (Alert.alert) for feedback (same UX pattern).
+   - Uses native alerts (Alert.alert) for feedback .
    - Pulls doulaId/motherId from route.params (React Navigation pattern).
 
   References used:

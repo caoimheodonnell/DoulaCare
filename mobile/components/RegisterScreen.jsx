@@ -9,7 +9,7 @@
     (/users/bootstrap) using the Supabase auth user ID.
   - Redirects the user back to the Login screen after successful signup.
 
-  Auth & Data Flow:
+  Auth and Data Flow:
   1) User submits registration form.
   2) Supabase Auth creates the auth user (signUp).
   3) Supabase returns a stable auth user ID (UUID).
@@ -20,15 +20,10 @@
 
   Similar to LoginScreen:
   - Uses controlled TextInput fields with useState.
-  - Uses React Native core UI components.
   - Uses native alerts for user feedback (Alert / window.alert).
   - Communicates with Supabase Auth and a FastAPI backend.
   - Uses navigation.reset for post-auth flow control.
 
-  Design patterns used:
-  - Auth bootstrap / user provisioning on signup
-  - Idempotent backend user creation
-  - Separation of auth identity (Supabase) from app data (SQL)
 
   References used:
   - React Native components:
@@ -42,14 +37,9 @@
 
   - Supabase Auth (Email and Password Signup):
     https://supabase.com/docs/guides/auth/auth-email
-
   - React Navigation (reset after registration):
     https://reactnavigation.org/docs/navigation-actions
-
-  - FastAPI request bodies & POST endpoints:
-    https://fastapi.tiangolo.com/tutorial/body/
-
-  - SQLModel sessions & updates:
+  - SQLModel sessions and updates:
     https://sqlmodel.tiangolo.com/tutorial/select/
     https://sqlmodel.tiangolo.com/tutorial/update/
 */
@@ -92,12 +82,14 @@ export default function RegisterScreen({ navigation }) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
     const cleanName = name.trim();
+
+    // Require a name before continuing
 if (!cleanName) {
   showMessage("Missing data", "Please enter your name.");
   return;
 }
 
-
+ // Require email and password
     if (!cleanEmail || !cleanPassword) {
       showMessage("Missing data", "Please enter email and password.");
       return;
@@ -106,10 +98,15 @@ if (!cleanName) {
     try {
       setLoading(true);
 
-      // 1) Supabase signup (stores role in metadata)
+      // 1) Supabase signup
+      // Role is stored in Supabase user metadata (extra data attached to the auth user)
+      // Based on Supabase auth signUp example.
+// Extended to also create/update a backend user record with app-specific data.
+
       const data = await signUp(cleanEmail, cleanPassword, role);
 
-      // 2) Bootstrap your SQL user row (use defaults so no missing vars)
+      // 2) Create or update the backend user record
+    // using the auth user ID
       const authId = data?.user?.id;
       if (authId) {
         await api.post("/users/bootstrap", {
@@ -120,9 +117,11 @@ if (!cleanName) {
         });
       }
 
+       // Let the user know registration worked
       showMessage("Account created", "You can now log in.");
 
       // back to login
+      // using react native navigation
       navigation.reset({
         index: 0,
         routes: [{ name: "Login" }],
@@ -160,6 +159,7 @@ if (!cleanName) {
         </TouchableOpacity>
       </View>
 
+       {/* Full name input */}
  <TextInput
   value={name}
   onChangeText={setName}
@@ -168,6 +168,7 @@ if (!cleanName) {
   style={styles.input}
 />
 
+         {/* Email input */}
       <TextInput
         value={email}
         onChangeText={setEmail}
@@ -177,6 +178,7 @@ if (!cleanName) {
         style={styles.input}
       />
 
+      {/* Password input */}
       <TextInput
         value={password}
         onChangeText={setPassword}
@@ -186,6 +188,7 @@ if (!cleanName) {
         style={styles.input}
       />
 
+       {/* Register button */}
       <TouchableOpacity
         style={[styles.primaryButton, loading && { opacity: 0.7 }]}
         onPress={onRegister}

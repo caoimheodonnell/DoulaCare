@@ -20,6 +20,7 @@ References used while building this:
 - For voice navigation backedn function - https://medium.com/@bnhminh_38309/build-a-fastapi-backend-for-speech-to-text-transcription-with-openai-whisper-4de7f082ab6e
 - Errror handlign for voice navigatio - https://chatgpt.com/c/691b2910-cc30-8325-bc1a-027aa7947a2c
 - Payment using STripe - https://medium.com/@abdulikram/building-a-payment-backend-with-fastapi-stripe-checkout-and-webhooks-08dc15a32010
+- Review - https://fastapi.tiangolo.com/tutorial/query-params/#required-query-parameters
 """
 
 
@@ -27,7 +28,8 @@ References used while building this:
 from fastapi import FastAPI,Depends, HTTPException, Query,UploadFile, File, Request
 from fastapi.staticfiles import StaticFiles
 from sqlmodel import SQLModel, Session, create_engine, select
-from typing import List,Optional
+from typing import List,Optional,Dict, Any
+from sqlalchemy import desc
 from contextlib import asynccontextmanager
 from backend.models.user import User
 #to allow web/mobile development origins
@@ -53,6 +55,8 @@ import stripe
 from pydantic import BaseModel
 from backend.schemas import ReviewCreate
 from backend.models.review import Review
+from backend.models.favourite import Favourite
+from backend.models.message import Message
 
 
 
@@ -662,10 +666,7 @@ def debug_routes():
 
 
 # Single "community" chat room for all moms and doulas
-#
 # keep last 100 messages in memory
-chat_history = deque(maxlen=100)
-
 chat_history = deque(maxlen=100)
 
 @app.websocket("/chat")
@@ -852,6 +853,7 @@ async def stripe_webhook(request: Request):
 # Helper endpoint to check review eligibility
 # Uses same booking-status business rule as POST /reviews (must be paid)
 # Follows same query/validation pattern used across booking endpoints
+#https://fastapi.tiangolo.com/tutorial/query-params/#required-query-parameters - Similar to FastAPI GET examples, but checks the database before returning a result
 @app.get("/reviews/can-review")
 def can_review(mother_id: int, doula_id: int, session: Session = Depends(get_session)):
     booking = session.exec(
@@ -894,10 +896,11 @@ def create_review(payload: ReviewCreate, session: Session = Depends(get_session)
     session.refresh(review)
     return review
 
-#mothers can now see reviews left by mothers on the doula profile
+#mothers can now see reviews left by other mothers on the doula profile
 @app.get("/reviews/by-doula/{doula_id}")
 def reviews_by_doula(doula_id: int, session: Session = Depends(get_session)):
     # Same query pattern used in booking retrieval
+    # https://docs.sqlalchemy.org/en/20/orm/queryguide/select.html#sqlalchemy.orm.Select.where
     reviews = session.exec(
         select(Review)
         .where(Review.doula_id == doula_id)
@@ -917,4 +920,325 @@ def reviews_by_doula(doula_id: int, session: Session = Depends(get_session)):
         for r in reviews
     ]
 
+class ToggleFavouriteBody(BaseModel):
+    doula_id: int
 
+# Adapted from POST /bookings:
+# - Uses the same mother validation pattern (auth UUID and role check),
+#   but toggles a Favourite record instead of creating a Booking.
+# Uses a conditional create/delete pattern:
+# checks if a Favourite exists for the mother/doula pair, then creates or deletes it.
+# Reference: SQLModel select().where() for existence checks
+# https://sqlmodel.tiangolo.com/tutorial/select/
+@app.post("/favourites/by-mother-auth/{mother_uuid}/toggle")
+def toggle_favourite(mother_uuid: UUID, body: ToggleFavouriteBody):
+    with Session(engine) as session:
+        mother = session.exec(
+            select(User).where(User.auth_id == mother_uuid, User.role == "mother")
+        ).first()
+        if not mother:
+            raise HTTPException(404, "Mother not found")
+
+        doula = session.get(User, body.doula_id)
+        if not doula or doula.role != "doula":
+            raise HTTPException(404, "Doula not found")
+
+        existing = session.exec(
+            select(Favourite).where(
+                Favourite.mother_auth_id == mother_uuid,
+                Favourite.doula_id == body.doula_id
+            )
+        ).first()
+
+        if existing:
+            session.delete(existing)
+            session.commit()
+            return {"favourited": False}
+
+        fav = Favourite(mother_auth_id=mother_uuid, doula_id=body.doula_id)
+        session.add(fav)
+        session.commit()
+        return {"favourited": True}
+
+
+# Adapted from GET /bookings/by-mother/{mother_id}/details:
+# - Both endpoints fetch records belonging to a specific mother
+# - Both enrich those records with doula details (name, verified, etc.)
+#   so the frontend does not have to work with raw IDs.
+# Reference: SQLModel select().where()
+# https://sqlmodel.tiangolo.com/tutorial/select/
+@app.get("/favourites/by-mother-auth/{mother_uuid}/details")
+def get_favourites_for_mother_detailed(mother_uuid: UUID):
+    with Session(engine) as session:
+        mother = session.exec(
+            select(User).where(User.auth_id == mother_uuid, User.role == "mother")
+        ).first()
+        if not mother:
+            raise HTTPException(404, "Mother not found")
+
+        favs = session.exec(
+            select(Favourite).where(Favourite.mother_auth_id == mother_uuid)
+        ).all()
+
+        result = []
+        for f in favs:
+            doula = session.get(User, f.doula_id)
+            if not doula or doula.role != "doula":
+                continue
+
+            result.append({
+                "favourite_id": f.id,
+                "doula_id": doula.id,
+                "doula_name": doula.name,
+                "location": doula.location,
+                "verified": doula.verified,
+                "price": doula.price,
+                "photo_url": doula.photo_url,
+            })
+
+        return result
+
+# Adapted from my previous WebSocket chat feature:
+# kept the chat UI behaviour, but implemented private messaging using GET/POST endpoints and stored messages in SQL
+# Unlike CommunityChat (which uses WebSockets),
+#private messages use REST endpoints because:
+# - messages must be persisted
+# - unread counts must be tracked
+#- users may not be online at the same time
+
+
+class SendMessageBody(BaseModel):
+    receiver_auth_id: UUID
+    text: str
+
+#Sends a new private message via REST.
+#Backend determines sender role and read flags server-side.
+
+@app.post("/messages/send")
+def send_message(body: SendMessageBody, sender_auth_id: UUID, sender_role: str):
+    with Session(engine) as session:
+        sender = session.exec(
+            select(User).where(User.auth_id == sender_auth_id, User.role == sender_role)
+        ).first()
+        if not sender:
+            raise HTTPException(404, "Sender not found")
+
+        receiver = session.exec(
+            select(User).where(User.auth_id == body.receiver_auth_id)
+        ).first()
+        if not receiver:
+            raise HTTPException(404, "Receiver not found")
+
+        if sender_role == "mother":
+            mother_auth_id = sender_auth_id
+            doula_auth_id = body.receiver_auth_id
+            read_by_mother = True
+            read_by_doula = False
+        elif sender_role == "doula":
+            mother_auth_id = body.receiver_auth_id
+            doula_auth_id = sender_auth_id
+            read_by_mother = False
+            read_by_doula = True
+        else:
+            raise HTTPException(400, "Invalid sender_role")
+
+        msg = Message(
+            mother_auth_id=mother_auth_id,
+            doula_auth_id=doula_auth_id,
+            sender_role=sender_role,
+            text=body.text.strip(),
+            read_by_mother=read_by_mother,
+            read_by_doula=read_by_doula,
+        )
+
+        session.add(msg)
+        session.commit()
+        session.refresh(msg)
+
+        return {"id": msg.id, "created_at": msg.created_at}
+
+
+
+@app.get("/messages/thread")
+def get_thread(mother_auth_id: UUID, doula_auth_id: UUID):
+    with Session(engine) as session:
+        msgs = session.exec(
+            select(Message)
+            .where(
+                Message.mother_auth_id == mother_auth_id,
+                Message.doula_auth_id == doula_auth_id
+            )
+            .order_by(Message.created_at)
+        ).all()
+
+        return [
+            {
+                "id": m.id,
+                "sender_role": m.sender_role,
+                "text": m.text,
+                "created_at": m.created_at,
+            }
+            for m in msgs
+        ]
+
+
+
+@app.get("/messages/unread-count")
+def unread_count(user_auth_id: UUID, role: str):
+    with Session(engine) as session:
+        if role == "mother":
+            unread = session.exec(
+                select(Message).where(
+                    Message.mother_auth_id == user_auth_id,
+                    Message.read_by_mother == False
+                )
+            ).all()
+        elif role == "doula":
+            unread = session.exec(
+                select(Message).where(
+                    Message.doula_auth_id == user_auth_id,
+                    Message.read_by_doula == False
+                )
+            ).all()
+        else:
+            raise HTTPException(400, "Invalid role")
+
+        return {"count": len(unread)}
+
+# Request body for marking messages as read in a private mother/doula chat
+# Identifies the conversation and updates read flags based on the viewer's role
+class MarkReadBody(BaseModel):
+    mother_auth_id: UUID
+    doula_auth_id: UUID
+    role: str
+
+#https://sqlmodel.tiangolo.com/tutorial/select/ - Grouping messages manually to form inbox-style threads
+#Marks all messages in this conversation as read for the current role
+#(mother or doula) when the chat is opened.
+
+@app.post("/messages/mark-read")
+def mark_read(body: MarkReadBody):
+    with Session(engine) as session:
+        msgs = session.exec(
+            select(Message).where(
+                Message.mother_auth_id == body.mother_auth_id,
+                Message.doula_auth_id == body.doula_auth_id
+            )
+        ).all()
+
+        for m in msgs:
+            if body.role == "mother":
+                m.read_by_mother = True
+            elif body.role == "doula":
+                m.read_by_doula = True
+            else:
+                raise HTTPException(400, "Invalid role")
+
+        session.add_all(msgs)
+        session.commit()
+        return {"ok": True}
+
+#Loads the full message history for a single mother ↔ doula conversation
+#using a REST GET endpoint instead of WebSockets.
+
+@app.get("/messages/threads")
+def get_threads(user_auth_id: UUID, role: str):
+    """
+    Inbox list:
+    - Returns one row per conversation (mother/doula pair)
+    - Includes last message and unread count for that pair
+    """
+    with Session(engine) as session:
+        if role == "mother":
+            msgs = session.exec(
+                select(Message)
+                .where(Message.mother_auth_id == user_auth_id)
+                .order_by(desc(Message.created_at))
+            ).all()
+        elif role == "doula":
+            msgs = session.exec(
+                select(Message)
+                .where(Message.doula_auth_id == user_auth_id)
+                .order_by(desc(Message.created_at))
+            ).all()
+        else:
+            raise HTTPException(400, "Invalid role")
+
+        # Group by "other person" auth id
+        threads: Dict[str, Dict[str, Any]] = {}
+
+        for m in msgs:
+            other_auth = (
+                str(m.doula_auth_id) if role == "mother" else str(m.mother_auth_id)
+            )
+
+            # create thread record if first time we see it (because msgs sorted desc -> first is last msg)
+            if other_auth not in threads:
+                other_user = session.exec(
+                    select(User).where(User.auth_id == UUID(other_auth))
+                ).first()
+
+                threads[other_auth] = {
+                    "other_auth_id": other_auth,
+                    "other_name": other_user.name if other_user else "Unknown",
+                    "other_role": "doula" if role == "mother" else "mother",
+                    "last_text": m.text,
+                    "last_created_at": m.created_at,
+                    "unread_count": 0,
+                }
+
+            # count unread per thread
+            if role == "mother" and (m.read_by_mother is False):
+                threads[other_auth]["unread_count"] += 1
+            if role == "doula" and (m.read_by_doula is False):
+                threads[other_auth]["unread_count"] += 1
+
+        return list(threads.values())
+
+#Loads the user's message inbox (one item per conversation),
+#similar to WhatsApp/Messenger conversation lists.
+#Uses GET /messages/inbox instead of loading full message history.
+
+@app.get("/messages/inbox")
+def inbox(user_auth_id: UUID, role: str):
+    with Session(engine) as session:
+        if role == "mother":
+            msgs = session.exec(
+                select(Message).where(Message.mother_auth_id == user_auth_id)
+                .order_by(Message.created_at.desc())
+            ).all()
+        elif role == "doula":
+            msgs = session.exec(
+                select(Message).where(Message.doula_auth_id == user_auth_id)
+                .order_by(Message.created_at.desc())
+            ).all()
+        else:
+            raise HTTPException(400, "Invalid role")
+
+        threads = {}
+        for m in msgs:
+            key = f"{m.mother_auth_id}-{m.doula_auth_id}"
+            if key not in threads:
+                # find the "other" user to show name
+                if role == "mother":
+                    other = session.exec(select(User).where(User.auth_id == m.doula_auth_id)).first()
+                else:
+                    other = session.exec(select(User).where(User.auth_id == m.mother_auth_id)).first()
+
+                threads[key] = {
+                    "thread_key": key,
+                    "mother_auth_id": m.mother_auth_id,
+                    "doula_auth_id": m.doula_auth_id,
+                    "other_name": other.name if other else "User",
+                    "last_text": m.text,
+                    "last_at": m.created_at,
+                    "unread_count": 0,
+                }
+
+            # count unread messages for this role
+            if role == "mother" and (m.read_by_mother == False) and (m.sender_role == "doula"):
+                threads[key]["unread_count"] += 1
+            if role == "doula" and (m.read_by_doula == False) and (m.sender_role == "mother"):
+                threads[key]["unread_count"] += 1
+
+        return list(threads.values())
