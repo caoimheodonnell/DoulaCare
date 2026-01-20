@@ -1000,11 +1000,8 @@ def get_favourites_for_mother_detailed(mother_uuid: UUID):
 
 # Adapted from my previous WebSocket chat feature:
 # kept the chat UI behaviour, but implemented private messaging using GET/POST endpoints and stored messages in SQL
-# Unlike CommunityChat (which uses WebSockets),
-#private messages use REST endpoints because:
-# - messages must be persisted
-# - unread counts must be tracked
-#- users may not be online at the same time
+# Unlike CommunityChat (which uses WebSockets)
+# This ChatGPT helped guide me in knowing the end points needed = https://chatgpt.com/c/696f9b88-5de8-832f-8ab9-8f97a929b31c
 
 
 class SendMessageBody(BaseModel):
@@ -1013,6 +1010,8 @@ class SendMessageBody(BaseModel):
 
 #Sends a new private message via REST.
 #Backend determines sender role and read flags server-side.
+#Adapted from Chatgpt: replaced manual sender/receiver handling with server-side role logic.
+#The server decides which user has read the message based on the sender.
 
 @app.post("/messages/send")
 def send_message(body: SendMessageBody, sender_auth_id: UUID, sender_role: str):
@@ -1058,7 +1057,8 @@ def send_message(body: SendMessageBody, sender_auth_id: UUID, sender_role: str):
         return {"id": msg.id, "created_at": msg.created_at}
 
 
-
+#Adapted from Chatgpt: forces ordered message retreived for a single conversation.
+#Returns only required fields instead of exposing full Message objects.
 @app.get("/messages/thread")
 def get_thread(mother_auth_id: UUID, doula_auth_id: UUID):
     with Session(engine) as session:
@@ -1082,7 +1082,8 @@ def get_thread(mother_auth_id: UUID, doula_auth_id: UUID):
         ]
 
 
-
+#Adapted from ChatGPT: unread messages are counted based on the logged-in user’s role.
+#Later replaced by the inbox endpoint to avoid duplicate functionality.
 @app.get("/messages/unread-count")
 def unread_count(user_auth_id: UUID, role: str):
     with Session(engine) as session:
@@ -1105,8 +1106,8 @@ def unread_count(user_auth_id: UUID, role: str):
 
         return {"count": len(unread)}
 
-# Request body for marking messages as read in a private mother/doula chat
-# Identifies the conversation and updates read flags based on the viewer's role
+#Request body for marking messages as read in a private mother/doula chat
+#Identifies the conversation and updates read flags based on the viewer's role
 class MarkReadBody(BaseModel):
     mother_auth_id: UUID
     doula_auth_id: UUID
@@ -1114,7 +1115,8 @@ class MarkReadBody(BaseModel):
 
 #https://sqlmodel.tiangolo.com/tutorial/select/ - Grouping messages manually to form inbox-style threads
 #Marks all messages in this conversation as read for the current role
-#(mother or doula) when the chat is opened.
+#Adapted form ChatGPT: marks messages as read based on viewer role.
+#Refactored later to only update messages sent by the other user.
 
 @app.post("/messages/mark-read")
 def mark_read(body: MarkReadBody):
@@ -1138,8 +1140,10 @@ def mark_read(body: MarkReadBody):
         session.commit()
         return {"ok": True}
 
-#Loads the full message history for a single mother ↔ doula conversation
+#Loads the full message history for a single mother to doula conversation
 #using a REST GET endpoint instead of WebSockets.
+#Adapted from ChatGPT: manual Python grouping to form inbox-style threads.
+#Includes last message and unread count per mother/doula pair.
 
 @app.get("/messages/threads")
 def get_threads(user_auth_id: UUID, role: str):
@@ -1172,7 +1176,7 @@ def get_threads(user_auth_id: UUID, role: str):
                 str(m.doula_auth_id) if role == "mother" else str(m.mother_auth_id)
             )
 
-            # create thread record if first time we see it (because msgs sorted desc -> first is last msg)
+            # create thread record if first time we see it
             if other_auth not in threads:
                 other_user = session.exec(
                     select(User).where(User.auth_id == UUID(other_auth))
@@ -1195,6 +1199,8 @@ def get_threads(user_auth_id: UUID, role: str):
 
         return list(threads.values())
 
+#Adapted from Chatgpt: replaced Python thread grouping with SQL aggregation.
+#Uses rolesafe unread counts and returns one row per conversation.
 #Loads the user's message inbox (one item per conversation),
 #similar to WhatsApp/Messenger conversation lists.
 #Uses GET /messages/inbox instead of loading full message history.

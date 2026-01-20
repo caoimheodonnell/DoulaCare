@@ -1,7 +1,7 @@
 
 /*
  /*
-  notifications.ts — local notification helpers for bookings
+  notifications.js  local notification helpers for bookings
 
   Main reference used:
     “Local Notifications in Expo” by Walter_Bloggins
@@ -175,6 +175,25 @@ export async function scheduleDoulaBookingReminder(startsAt, motherName) {
   );
 }
 
+/*
+I use the same local notification API from the reference, but instead of
+scheduling a time-based reminder, this section triggers an immediate
+notification when new unread messages are detected.
+
+What I adapted from the reference:
+  - Uses `Notifications.scheduleNotificationAsync()` to display a local alert
+  - Fires the notification instantly using `trigger: null`
+  - No seconds- or date-based trigger is used
+
+What I added:
+  - Fetches unread message count from the backend
+  - Stores the previous unread count in AsyncStorage
+  - Compares counts to detect new messages only
+  - Prevents duplicate notifications for the same unread messages
+
+This is event-based (data-driven) rather than time-based like the
+1 day / 1 hour / 15 minute booking reminders above.
+*/
 const MSG_UNREAD_KEY = "msg_unread_count";
 
 export async function checkMessageNotifications(userAuthId, role) {

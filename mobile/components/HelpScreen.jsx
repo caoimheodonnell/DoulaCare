@@ -45,7 +45,7 @@ const COLORS = {
   border: "#EBDAD2",
 };
 
-export default function HelpScreen() {
+export default function HelpScreen({ navigation }) {
   return (
       // ScrollView so all support cards are scrollable on smaller phones
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16 }}>
@@ -53,6 +53,23 @@ export default function HelpScreen() {
       <Text style={styles.subtitle}>
         If you ever feel overwhelmed, you don't have to cope alone. Here are some supports you can reach out to:
       </Text>
+        {/* Navigation so users can go into coping mechanisms  */}
+<View style={styles.quickRow}>
+  <TouchableOpacity
+    style={[styles.quickBtn, { backgroundColor: COLORS.primary }]}
+    onPress={() => navigation.navigate("CopingTools")}
+  >
+    <Text style={styles.quickBtnText}>Coping Tools</Text>
+  </TouchableOpacity>
+
+  <TouchableOpacity
+    style={[styles.quickBtn, { backgroundColor: COLORS.accent }]}
+    onPress={() => navigation.navigate("PostpartumTips")}
+  >
+    <Text style={styles.quickBtnText}>Postpartum Tips</Text>
+  </TouchableOpacity>
+</View>
+
   {/* Card 1 – Mental Health Ireland / emergency support
           The text is adapted from Mental Health Ireland "Need Help Now" page:
           https://www.mentalhealthireland.ie/need-help-now/
@@ -172,6 +189,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+    quickRow: {
+  flexDirection: "row",
+  gap: 10,
+  marginBottom: 16,
+},
+quickBtn: {
+  flex: 1,
+  paddingVertical: 12,
+  borderRadius: 12,
+  alignItems: "center",
+},
+quickBtnText: {
+  color: "white",
+  fontWeight: "800",
+},
+
   title: {
     fontSize: 24,
     fontWeight: "800",

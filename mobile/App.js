@@ -1,5 +1,5 @@
 /*
-  (mobile/App.js) — Navigation overview for Doula App (Expo + FastAPI)
+  (mobile/App.js) - Navigation overview for Doula App (Expo and FastAPI)
 
   - Combines Bottom Tabs (Home, Doulas) with a nested Stack Navigator for deeper screens.
   - "Doulas" tab contains:
@@ -23,7 +23,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 
-// --- Auth gate + login ---
+// Auth gate and login
 import AppGate from "./components/AppGate";
 import LoginScreen from "./components/LoginScreen";
 import RegisterScreen from "./components/RegisterScreen";
@@ -33,7 +33,7 @@ import RegisterScreen from "./components/RegisterScreen";
 import HomeScreen from "./components/HomeScreen";   // Mother home (your original)
 import HomeDoula from "./components/HomeDoula";     // Doula home
 
-// --- Your existing screens ---
+// ---  existing screens ---
 import UsersMobile from "./components/UsersMobile";
 import AddUserFormMobile from "./components/AddUserFormMobile";
 import DoulaDetails from "./components/DoulaDetails";
@@ -47,6 +47,7 @@ import LeaveReview from "./components/LeaveReview";
 import MotherFavouritesScreen from "./components/MotherFavouritesScreen";
 import PrivateChatScreen from "./components/PrivateChatScreen";
 import MessagesInboxScreen from "./components/MessagesInboxScreen";
+import CopingToolsScreen from "./components/CopingToolsScreen";
 
 
 
@@ -128,6 +129,12 @@ function DoulasStackScreen() {
   component={MessagesInboxScreen}
   options={{ title: "Messages" }}
 />
+<Stack.Screen
+  name="CopingTools"
+  component={CopingToolsScreen}
+  options={{ title: "Coping Tools" }}
+/>
+
 
 
     </Stack.Navigator>

@@ -3,14 +3,16 @@
 
   What this screen does:
   - Displays a list of private chat conversations (threads) for the logged-in user.
-  - Shows one row per mother ↔ doula conversation.
+  - Shows one row per mother to doula conversation.
   - Displays the last message preview and unread message count per thread.
   - Navigates to the PrivateChatScreen when a thread is selected.
 
-  How this fits into the messaging system:
-  - Acts as the entry point to private messaging.
-  - Uses REST APIs to fetch conversation metadata (not message-by-message).
-  - Complements PrivateChatScreen, which handles full message history.
+    How this was adapted (from MyBookingsScreen list pattern):
+  - Kept the same FlatList and loading state structure (ActivityIndicator and useEffect fetch).
+  - Switched data source from bookings endpoints to GET /messages/inbox (threads).
+  - Each row navigates to a chat screen instead of a booking detail/action flow.
+  - Added unread message badge per thread (unread_count)
+
 
   References used:
   - React Native FlatList (efficient list rendering):

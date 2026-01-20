@@ -112,6 +112,17 @@ export default function HomeScreen({ navigation }) {
     );
   };
 
+  // Navigate to Coping Tools screen
+const goCopingTools = () => {
+  closeMenu();
+  navigation.dispatch(
+    CommonActions.navigate({
+      name: "Doulas",
+      params: { screen: "CopingTools" },
+    })
+  );
+};
+
   // Navigate to bookings screen for the logged-in mother
   const goMotherBookings = () => {
     closeMenu();
@@ -243,6 +254,17 @@ const goMessages = () => {
                 />
                 <Text style={styles.menuItemText}>Postpartum Tips</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={goCopingTools}>
+  <Ionicons
+    name="sparkles-outline"
+    size={20}
+    color={COLORS.accent}
+    style={styles.menuIcon}
+  />
+  <Text style={styles.menuItemText}>Coping Tools</Text>
+</TouchableOpacity>
+
 
               <TouchableOpacity style={styles.menuItem} onPress={goMotherFavourites}>
   <Ionicons
