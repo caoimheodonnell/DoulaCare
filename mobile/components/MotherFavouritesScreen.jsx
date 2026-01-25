@@ -166,7 +166,7 @@ export default function MotherFavouritesScreen({ navigation }) {
     </View>
   );
 }
-
+//https://reactnative.dev/docs/stylesheet- Modified for favoruites
 const styles = StyleSheet.create({
   container: {
     flex: 1,

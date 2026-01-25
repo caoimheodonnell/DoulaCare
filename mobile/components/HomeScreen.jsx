@@ -34,7 +34,7 @@ import { CommonActions } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { signOut } from "../auth";
 import { supabase } from "../supabaseClient";
-import { checkMessageNotifications } from "../notifications";
+import { checkMessageNotifications } from "../notifications"; // messagae notification
 
 
 const COLORS = {
@@ -53,13 +53,18 @@ export default function HomeScreen({ navigation }) {
 
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Check for unread message notifications when the screen loads
+// useEffect is used to run side effects (API calls, storage, notifications)
+// https://react.dev/reference/react/useEffect
   useEffect(() => {
   const run = async () => {
+    // Get the currently logged-in user's session from Supabase
+    // https://supabase.com/docs/reference/javascript/auth-getsession
     const { data } = await supabase.auth.getSession();
     const authId = data?.session?.user?.id;
     if (!authId) return;
 
-    //  DIFFERENT FROM DOULA: role is "mother"
+
     const count = await checkMessageNotifications(authId, "mother");
     setUnreadCount(count);
   };

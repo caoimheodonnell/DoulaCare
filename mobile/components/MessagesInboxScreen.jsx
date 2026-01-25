@@ -8,7 +8,7 @@
   - Navigates to the PrivateChatScreen when a thread is selected.
 
     How this was adapted (from MyBookingsScreen list pattern):
-  - Kept the same FlatList and loading state structure (ActivityIndicator and useEffect fetch).
+  - Kept the same FlatList and loading state structure (ActivityIndicator and useEffect fetch) - shows all my messages in cards
   - Switched data source from bookings endpoints to GET /messages/inbox (threads).
   - Each row navigates to a chat screen instead of a booking detail/action flow.
   - Added unread message badge per thread (unread_count)
@@ -58,7 +58,7 @@ export default function MessagesInboxScreen({ navigation, route }) {
   // Loading flag for initial inbox fetch
   const [loading, setLoading] = React.useState(true);
 
-  // Load the current user's auth ID from Supabase
+  // Load the current user's auth ID from Supabase - so it knows what converstaion to get
   // Reference: Supabase auth.getSession()
   React.useEffect(() => {
     const load = async () => {
@@ -109,56 +109,69 @@ export default function MessagesInboxScreen({ navigation, route }) {
             Reference: https://reactnative.dev/docs/touchableopacity
           */
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Messages</Text>
+  // Main screen wrapper
+  // Handles overall layout and background styling
+  <View style={styles.container}>
 
-      <FlatList
-        data={threads}
-        keyExtractor={(t) => String(t.thread_key)}
-        contentContainerStyle={{ padding: 12 }}
-        ListEmptyComponent={
-          <Text style={{ marginTop: 8, color: COLORS.text }}>
-            No messages yet.
-          </Text>
-        }
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => {
-              navigation.navigate("PrivateChat", {
-                role,
-                motherAuthId: item.mother_auth_id,
-                doulaAuthId: item.doula_auth_id,
-                otherName: item.other_name,
-              });
-            }}
-          >
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={22}
-              color={COLORS.accent}
-              style={{ marginRight: 10 }}
-            />
+    <Text style={styles.title}>Messages</Text>
 
-            <View style={{ flex: 1 }}>
-              <Text style={styles.name}>{item.other_name}</Text>
-              <Text style={styles.preview} numberOfLines={1}>
-                {item.last_text || ""}
-              </Text>
+    <FlatList
+      data={threads}
+      // keyExtractor provides a unique key per thread
+      keyExtractor={(t) => String(t.thread_key)}
+      contentContainerStyle={{ padding: 12 }}
+
+      ListEmptyComponent={
+      // Empty state when no threads exist
+        <Text style={{ marginTop: 8, color: COLORS.text }}>
+          No messages yet.
+        </Text>
+      }
+
+      renderItem={({ item }) => (
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => {
+            // Navigate into the private chat screen
+            // Passing identifiers so the chat can load the correct thread/participants
+            navigation.navigate("PrivateChat", {
+              role,
+              motherAuthId: item.mother_auth_id,
+              doulaAuthId: item.doula_auth_id,
+              otherName: item.other_name,
+            });
+          }}
+        >
+
+          <Ionicons
+            name="chatbubble-ellipses-outline"
+            size={22}
+            color={COLORS.accent}
+            style={{ marginRight: 10 }}
+          />
+
+
+          <View style={{ flex: 1 }}>
+            <Text style={styles.name}>{item.other_name}</Text>
+            <Text style={styles.preview} numberOfLines={1}>
+              {item.last_text || ""}
+            </Text>
+          </View>
+
+
+          {item.unread_count > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{item.unread_count}</Text>
             </View>
+          )}
+        </TouchableOpacity>
+      )}
+    />
+  </View>
+);
 
-            {item.unread_count > 0 && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{item.unread_count}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        )}
-      />
-    </View>
-  );
 }
-
+//https://reactnative.dev/docs/stylesheet- Modified for message inbox
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   title: {

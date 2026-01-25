@@ -194,27 +194,44 @@ What I added:
 This is event-based (data-driven) rather than time-based like the
 1 day / 1 hour / 15 minute booking reminders above.
 */
-const MSG_UNREAD_KEY = "msg_unread_count";
 
+// Generates a unique AsyncStorage key per user + role
+// This prevents unread counts from different accounts or roles overwriting each other
+const msgUnreadKey = (userAuthId, role) => `msg_unread_count:${role}:${userAuthId}`;
+
+// Checks backend for unread messages and triggers a local notification
+// when the unread count increases (event-based notification pattern)
+//https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/async_function
 export async function checkMessageNotifications(userAuthId, role) {
+  // Fetch total unread messages for this user and role
+  // API returns = count: number
   const res = await api.get("/messages/unread-count", {
     params: { user_auth_id: userAuthId, role },
   });
 
   const count = res.data?.count ?? 0;
 
-  const prevRaw = await AsyncStorage.getItem(MSG_UNREAD_KEY);
+    // Load previously stored unread count from AsyncStorage
+  const key = msgUnreadKey(userAuthId, role);
+  const prevRaw = await AsyncStorage.getItem(key);
   const prev = prevRaw ? Number(prevRaw) : 0;
 
+  // Trigger a local notification only if unread count increased
+  // This prevents duplicate notifications for the same messages
   if (count > prev) {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: "New message",
         body: `You have ${count} unread message${count === 1 ? "" : "s"}.`,
       },
+      // trigger: null means "show immediately"
       trigger: null,
     });
   }
 
-  await AsyncStorage.setItem(MSG_UNREAD_KEY, String(count));
+  // Save the current unread count so we can check for new messages later
+  await AsyncStorage.setItem(key, String(count));
+
+  //  so Home screens can show the badge count
+  return count;
 }

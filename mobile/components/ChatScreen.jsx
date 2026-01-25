@@ -259,7 +259,7 @@ export default function ChatScreen() {
   );
 }
 
-// Styles
+// //https://reactnative.dev/docs/stylesheet- Modified for chat screen
 const styles = StyleSheet.create({
   container: {
     flex: 1,

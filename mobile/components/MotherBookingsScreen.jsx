@@ -387,9 +387,9 @@ export default function MotherBookingsScreen() {
 
         <Text style={[styles.status, styles[`status_${item.status}`]]}>
           {item.status === "paid"
-            ? "Confirmed — Paid"
+            ? "Confirmed - Paid"
             : item.status === "confirmed"
-            ? "Confirmed — payment due"
+            ? "Confirmed - payment due"
             : `Status: ${item.status}`}
         </Text>
 
@@ -467,7 +467,7 @@ export default function MotherBookingsScreen() {
   );
 }
 
-// Styles
+// //https://reactnative.dev/docs/stylesheet- Modified for mother booking screen
 const styles = StyleSheet.create({
   container: {
     flex: 1,

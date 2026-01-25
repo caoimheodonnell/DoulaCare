@@ -135,6 +135,7 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
+//https://reactnative.dev/docs/stylesheet- Modified for login
 const styles = StyleSheet.create({
   container: {
     flex: 1,

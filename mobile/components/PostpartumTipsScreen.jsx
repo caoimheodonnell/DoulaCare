@@ -167,6 +167,7 @@ export default function PostpartumTipsScreen({ navigation }) {
   );
 }
 
+//https://reactnative.dev/docs/stylesheet- Modified for postpartum tips
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
 

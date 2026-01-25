@@ -26,7 +26,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image, Modal } from "react-na
 import { CommonActions } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { signOut } from "../auth";
-import { checkMessageNotifications } from "../notifications";
+import { checkMessageNotifications } from "../notifications"; //message notification
 import { supabase } from "../supabaseClient";
 
 
@@ -45,23 +45,40 @@ export default function HomeDoula({ navigation, route }) {
   const [menuVisible, setMenuVisible] = useState(false);
 
   // if you pass doulaId through navigation
-  const doulaId = route?.params?.doulaId;
+ // Doula ID passed through navigation (used for booking / profile-related logic)
+const doulaId = route?.params?.doulaId;
 
-  const [unreadCount, setUnreadCount] = useState(0);
+// Stores the number of unread messages to show in the menu badge
+// useState reference: https://react.dev/reference/react/useState
+const [unreadCount, setUnreadCount] = useState(0);
 
-  // Check for unread messages when doula opens home screen
-  useEffect(() => {
+// Check for unread message notifications when the screen loads
+// useEffect is used to run side effects (API calls, storage, notifications)
+// https://react.dev/reference/react/useEffect
+useEffect(() => {
   const run = async () => {
+
+    // Get the currently logged-in user's session from Supabase
+    // https://supabase.com/docs/reference/javascript/auth-getsession
     const { data } = await supabase.auth.getSession();
     const authId = data?.session?.user?.id;
+
+    // Stop if the user is not logged in
     if (!authId) return;
 
+    // Check backend for unread messages and trigger a local notification if needed
+    // https://docs.expo.dev/versions/latest/sdk/notifications/
     const count = await checkMessageNotifications(authId, "doula");
+
+    // Update local state so the unread badge in the menu refreshes
     setUnreadCount(count);
   };
 
+  // Run the async check once when the screen mounts
   run();
 }, []);
+
+
 
 
 

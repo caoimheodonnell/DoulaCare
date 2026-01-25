@@ -1000,8 +1000,10 @@ def get_favourites_for_mother_detailed(mother_uuid: UUID):
 
 # Adapted from my previous WebSocket chat feature:
 # kept the chat UI behaviour, but implemented private messaging using GET/POST endpoints and stored messages in SQL
-# Unlike CommunityChat (which uses WebSockets)
+# Unlike CommunityChat (which uses WebSockets) - it keeps the messages there so mothers can return to the conversation at anytiem
 # This ChatGPT helped guide me in knowing the end points needed = https://chatgpt.com/c/696f9b88-5de8-832f-8ab9-8f97a929b31c
+# Also used for REST - https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods
+
 
 
 class SendMessageBody(BaseModel):
@@ -1016,18 +1018,28 @@ class SendMessageBody(BaseModel):
 @app.post("/messages/send")
 def send_message(body: SendMessageBody, sender_auth_id: UUID, sender_role: str):
     with Session(engine) as session:
+        # Validate sender exists and role matches.
+        # This prevents a user faking a different role
         sender = session.exec(
             select(User).where(User.auth_id == sender_auth_id, User.role == sender_role)
         ).first()
         if not sender:
             raise HTTPException(404, "Sender not found")
 
+        # Validate receiver exists.
         receiver = session.exec(
             select(User).where(User.auth_id == body.receiver_auth_id)
         ).first()
         if not receiver:
             raise HTTPException(404, "Receiver not found")
 
+        # Role-based mapping:
+        # If mother sends to mother_auth_id = sender, doula_auth_id = receiver
+        # If doula sends to doula_auth_id = sender, mother_auth_id = receiver
+        #
+        # Read flags:
+        # - Sender side is True (they obviously "read" what they just sent)
+        # - Receiver side is False (unread notification logic depends on this)
         if sender_role == "mother":
             mother_auth_id = sender_auth_id
             doula_auth_id = body.receiver_auth_id
@@ -1041,6 +1053,7 @@ def send_message(body: SendMessageBody, sender_auth_id: UUID, sender_role: str):
         else:
             raise HTTPException(400, "Invalid sender_role")
 
+        # Create and persist message row
         msg = Message(
             mother_auth_id=mother_auth_id,
             doula_auth_id=doula_auth_id,
@@ -1071,6 +1084,7 @@ def get_thread(mother_auth_id: UUID, doula_auth_id: UUID):
             .order_by(Message.created_at)
         ).all()
 
+        # Return only fields needed by mobile UI (keeps response small)
         return [
             {
                 "id": m.id,
@@ -1083,7 +1097,11 @@ def get_thread(mother_auth_id: UUID, doula_auth_id: UUID):
 
 
 #Adapted from ChatGPT: unread messages are counted based on the logged-in user’s role.
-#Later replaced by the inbox endpoint to avoid duplicate functionality.
+# Counts total unread messages for the logged-in user based on role.
+# - Mother: unread = messages where read_by_mother == False
+# - Doula:  unread = messages where read_by_doula  == False
+#https://sqlmodel.tiangolo.com/tutorial/select/#where
+# This endpoint is used by local notification polling on the device.
 @app.get("/messages/unread-count")
 def unread_count(user_auth_id: UUID, role: str):
     with Session(engine) as session:
@@ -1128,6 +1146,7 @@ def mark_read(body: MarkReadBody):
             )
         ).all()
 
+        # Update flags based on viewer role
         for m in msgs:
             if body.role == "mother":
                 m.read_by_mother = True
@@ -1154,6 +1173,7 @@ def get_threads(user_auth_id: UUID, role: str):
     """
     with Session(engine) as session:
         if role == "mother":
+            # Fetch all messages for this user, newest first
             msgs = session.exec(
                 select(Message)
                 .where(Message.mother_auth_id == user_auth_id)
@@ -1172,11 +1192,12 @@ def get_threads(user_auth_id: UUID, role: str):
         threads: Dict[str, Dict[str, Any]] = {}
 
         for m in msgs:
+            # Determine the "other participant" depending on role
             other_auth = (
                 str(m.doula_auth_id) if role == "mother" else str(m.mother_auth_id)
             )
 
-            # create thread record if first time we see it
+            # create thread record if first time you see it
             if other_auth not in threads:
                 other_user = session.exec(
                     select(User).where(User.auth_id == UUID(other_auth))
@@ -1202,7 +1223,7 @@ def get_threads(user_auth_id: UUID, role: str):
 #Adapted from Chatgpt: replaced Python thread grouping with SQL aggregation.
 #Uses rolesafe unread counts and returns one row per conversation.
 #Loads the user's message inbox (one item per conversation),
-#similar to WhatsApp/Messenger conversation lists.
+#similar to WhatsApp conversation lists.
 #Uses GET /messages/inbox instead of loading full message history.
 
 @app.get("/messages/inbox")
@@ -1223,6 +1244,7 @@ def inbox(user_auth_id: UUID, role: str):
 
         threads = {}
         for m in msgs:
+            # A thread is uniquely identified by the mother/doula pair
             key = f"{m.mother_auth_id}-{m.doula_auth_id}"
             if key not in threads:
                 # find the "other" user to show name
@@ -1242,6 +1264,9 @@ def inbox(user_auth_id: UUID, role: str):
                 }
 
             # count unread messages for this role
+            # Only count as unread if:
+            # - The message is unread for this role
+            # - AND it was sent by the other role
             if role == "mother" and (m.read_by_mother == False) and (m.sender_role == "doula"):
                 threads[key]["unread_count"] += 1
             if role == "doula" and (m.read_by_doula == False) and (m.sender_role == "mother"):

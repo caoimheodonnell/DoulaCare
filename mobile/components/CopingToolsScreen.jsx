@@ -1,5 +1,5 @@
 /*
-  CopingToolsScreen – In-app wellbeing tools
+  CopingToolsScreen
 
   What this screen does:
   - Gives mothers quick coping exercises they can do immediately in-app
@@ -9,15 +9,15 @@
   - Adds navigation shortcuts to - this helps connect other useful resources in the app:
     - HelpScreen (helplines)
     - CommunityChat (peer support)
-    - PostpartumTips (trusted external reading)
+
 
   How this differs from PostpartumTipsScreen:
   - PostpartumTips = external health articles opened with Linking.openURL
-  - CopingTools = practical exercises inside the app (tap to expand + do it now)
+  - CopingTools = practical exercises inside the app
 
   References used:
   - TextInput (search bar): https://reactnative.dev/docs/textinput
-  - TouchableOpacity (expand tool + navigation buttons): https://reactnative.dev/docs/touchableopacity
+  - TouchableOpacity (expand tool and navigation buttons): https://reactnative.dev/docs/touchableopacity
   - Flexbox layout (button rows, alignment): https://reactnative.dev/docs/flexbox
   - useState (UI state: query, expanded card): https://react.dev/reference/react/useState
 */
@@ -178,7 +178,11 @@ export default function CopingToolsScreen({ navigation }) {
         Tool cards:
         - Similar layout to PostpartumTips cards (title,text, button)
         - Instead of Linking.openURL, the "Start" button toggles step visibility
+        - Collapsible content (same pattern as showPriceFilters && (...) in UsersMobile):
+        -  steps only render when this card is expanded.
+
         Reference for TouchableOpacity: https://reactnative.dev/docs/touchableopacity
+        Refrence for Map: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/map
       */}
       {filtered.map((tool) => {
         const isOpen = expandedId === tool.id;
@@ -206,6 +210,10 @@ export default function CopingToolsScreen({ navigation }) {
             {/*
               Steps are only shown if the card is expanded.
               This makes the screen feel less overwhelming (one tool at a time).
+              - same as the price filter in users mobile
+              -Show a coping tool card for each tool in the list
+              -map() is used to display the tools on screen
+
             */}
             {isOpen && (
               <View style={styles.stepsBox}>
@@ -220,7 +228,7 @@ export default function CopingToolsScreen({ navigation }) {
         );
       })}
 
-      {/*  Community support box  */}
+      {/*  Community support box  - uses dashed border to help seperate from other cards */}
       <View style={[styles.card, { borderStyle: "dashed" }]}>
         <Text style={styles.cardTitle}>If you need to talk to people</Text>
         <Text style={styles.cardText}>
@@ -250,7 +258,7 @@ export default function CopingToolsScreen({ navigation }) {
     </ScrollView>
   );
 }
-
+//https://reactnative.dev/docs/stylesheet- Modified for coping tools
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   title: { fontSize: 24, fontWeight: "800", color: COLORS.accent, marginBottom: 8 },

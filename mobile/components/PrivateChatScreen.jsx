@@ -1,5 +1,5 @@
 /*
-  Private Chat Screen (Mother to Doula)
+  Private Chat Screen
 
   What this screen does:
   - Displays a private 1-to-1 message thread between a mother and a doula.
@@ -66,6 +66,7 @@ export default function PrivateChatScreen({ route }) {
   const [myAuthId, setMyAuthId] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [messages, setMessages] = React.useState([]);
+  // Controlled input for message text
   const [text, setText] = React.useState("");
 
   // Load the currently authenticated user's auth UUID from Supabase
@@ -119,18 +120,23 @@ export default function PrivateChatScreen({ route }) {
     // Send a new message using a REST POST request
   // Server determines sender role
   const send = async () => {
+    // remove spaces so blank messages can't be sent
+    //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/trim
     const trimmed = text.trim();
+    // stop if message is empty or user is not logged in
     if (!trimmed || !myAuthId) return;
 
     const receiverAuthId = role === "mother" ? doulaAuthId : motherAuthId;
 
     try {
       await api.post(
+           // Send message to backend
         "/messages/send",
         { receiver_auth_id: receiverAuthId, text: trimmed },
         { params: { sender_auth_id: myAuthId, sender_role: role } }
       );
 
+  // Clear input field after sending
       setText("");
       // Reload thread so UI reflects the new message immediately
       await loadThread(); // reload after send
@@ -240,3 +246,4 @@ const styles = StyleSheet.create({
   sendText: { color: "white", fontWeight: "800" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 });
+

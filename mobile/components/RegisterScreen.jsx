@@ -206,6 +206,7 @@ if (!cleanName) {
   );
 }
 
+//https://reactnative.dev/docs/stylesheet- Modified for register
 const styles = StyleSheet.create({
   container: {
     flex: 1,

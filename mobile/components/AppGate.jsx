@@ -30,6 +30,10 @@ import { getMyRole } from "../auth";
 
 export default function AppGate({ navigation }) {
   useEffect(() => {
+    // alive flag prevents navigation after the screen unmounts
+// This avoids issues with async logic finishing late
+// React useEffect cleanup pattern - https://react.dev/learn/synchronizing-with-effects
+
     let alive = true;
 
     // Run an async check as soon as the app loads this screen

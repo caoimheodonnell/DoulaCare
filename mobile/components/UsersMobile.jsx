@@ -112,6 +112,7 @@ const [motherId, setMotherId] = useState(null);
   const nav = useNavigation();
 
 
+
 const [canReviewMap, setCanReviewMap] = useState({});
 // Voice recording
 
@@ -726,7 +727,7 @@ useEffect(() => {
             <Text style={styles.userName}>{u.name}</Text>
 
             <Text style={styles.userMeta}>
-              {u.location} — €{u.price}
+              {u.location} - €{u.price}
             </Text>
 
             <Text
@@ -757,26 +758,25 @@ useEffect(() => {
           </View>
         </TouchableOpacity>
 
-        {/* RIGHT: icons (message + favourite) */}
+        {/* RIGHT: icons (message and favourite) */}
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           {/* Message icon */}
-          <TouchableOpacity
-            onPress={() =>
-              nav.navigate("PrivateChat", {
-                doulaId: u.id,
-                doulaAuthId: u.auth_id,
-                doulaName: u.name,
-              })
-            }
-            style={{ padding: 10 }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons
-              name="chatbubble-ellipses-outline"
-              size={22}
-              color={COLORS.accent}
-            />
-          </TouchableOpacity>
+<TouchableOpacity
+  onPress={() =>
+    nav.navigate("PrivateChat", {
+      role: "mother",
+      motherAuthId: motherAuthId,   // you already have this state from supabase session
+      doulaAuthId: u.auth_id,       // doula’s auth UUID
+      otherName: u.name,
+    })
+  }
+  style={{ padding: 10 }}
+>
+  <Ionicons name="chatbubble-ellipses-outline" size={22} color={COLORS.accent} />
+</TouchableOpacity>
+
+
+
 
           {/* Heart icon */}
           <TouchableOpacity
