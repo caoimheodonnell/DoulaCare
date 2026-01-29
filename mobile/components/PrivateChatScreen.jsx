@@ -62,7 +62,7 @@ export default function PrivateChatScreen({ route }) {
   const { role, motherAuthId, doulaAuthId, otherName } = route.params;
 
    // Local state for auth identity, loading state, message list, and input text
-  // Reference: useState hook
+  // useState hook
   const [myAuthId, setMyAuthId] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [messages, setMessages] = React.useState([]);
@@ -145,7 +145,7 @@ export default function PrivateChatScreen({ route }) {
     }
   };
 
-   // Loading indicator while fetching message history
+   // Loading indicator while fetching message history - https://reactnative.dev/docs/activityindicator
   if (loading) {
     return (
       <View style={styles.center}>
@@ -193,7 +193,7 @@ export default function PrivateChatScreen({ route }) {
     </View>
   );
 }
-
+//https://reactnative.dev/docs/stylesheet- Modified for private chat screen
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   header: {

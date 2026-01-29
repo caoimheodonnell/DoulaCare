@@ -210,7 +210,7 @@ export default function MyBookingsScreen() {
 
   // Doula updates booking status: requested to confirmed / declined / cancelled.
   // Backend endpoint: POST /bookings/{booking_id}/status
-    // Adapted from the MDN fetch() POST example — same idea of sending JSON in a POST request,
+    // Adapted from the MDN fetch() POST example - same idea of sending JSON in a POST request,
   // but implemented with Axios, which handles headers and JSON.stringify automatically.-https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch#uploading_json_data
  const updateStatus = async (booking, status) => {
   try {

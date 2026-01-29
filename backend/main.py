@@ -1273,3 +1273,44 @@ def inbox(user_auth_id: UUID, role: str):
                 threads[key]["unread_count"] += 1
 
         return list(threads.values())
+
+
+class UserUpdate(BaseModel):
+    verified: Optional[bool] = None
+    certificate_url: Optional[str] = None
+    photo_url: Optional[str] = None
+    price: Optional[float] = None
+    location: Optional[str] = None
+    name: Optional[str] = None
+    qualifications: Optional[str] = None
+    services: Optional[str] = None
+    intro_video_url: Optional[str] = None
+    price_bundle: Optional[float] = None
+    years_experience: Optional[int] = None
+    email: Optional[str] = None
+
+
+@app.patch("/users/{user_id}", response_model=User)
+def patch_user(user_id: int, payload: UserUpdate):
+    with Session(engine) as session:
+        user = session.get(User, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        data = payload.model_dump(exclude_unset=True)
+        for key, value in data.items():
+            setattr(user, key, value)
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
+@app.get("/admin/doulas/pending", response_model=List[User])
+def pending_doulas():
+    with Session(engine) as session:
+        stmt = select(User).where(
+            User.role == "doula",
+            User.verified == False
+        )
+        return session.exec(stmt).all()

@@ -213,6 +213,8 @@ export default function CopingToolsScreen({ navigation }) {
               - same as the price filter in users mobile
               -Show a coping tool card for each tool in the list
               -map() is used to display the tools on screen
+              -idx starts at 0, so add 1 to display steps starting from 1
+
 
             */}
             {isOpen && (

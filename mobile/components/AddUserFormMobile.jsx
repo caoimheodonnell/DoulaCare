@@ -228,7 +228,7 @@ const pickAndUploadPhoto = async () => {
         years_experience: yearsNum,
         photo_url: photoUrl.trim() || null,
         role: "doula",// ensureing role is set to doula
-        verified,
+        verified: false,
         email: email.trim() || null,
         qualifications: qualifications.trim() || null,
         services: services.trim() || null,

@@ -48,6 +48,9 @@ import MotherFavouritesScreen from "./components/MotherFavouritesScreen";
 import PrivateChatScreen from "./components/PrivateChatScreen";
 import MessagesInboxScreen from "./components/MessagesInboxScreen";
 import CopingToolsScreen from "./components/CopingToolsScreen";
+import AdminHomeScreen from "./components/AdminHomeScreen";
+import PendingDoulasScreen from "./components/PendingDoulasScreen";
+
 
 
 
@@ -203,6 +206,9 @@ export default function App() {
   <Root.Screen name="Login" component={LoginScreen} />
   <Root.Screen name="Register" component={RegisterScreen} />
   <Root.Screen name="MainTabs" component={MainTabs} />
+  <Root.Screen name="AdminHome" component={AdminHomeScreen} />
+  <Root.Screen name="PendingDoulas" component={PendingDoulasScreen} />
+
 </Root.Navigator>
 
     </NavigationContainer>

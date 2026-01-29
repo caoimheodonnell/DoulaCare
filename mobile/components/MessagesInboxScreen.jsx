@@ -87,13 +87,14 @@ export default function MessagesInboxScreen({ navigation, route }) {
   };
 
   // Load inbox once auth ID is available
-  // Reference: useEffect dependency pattern
+  // Reference: useEffect pattern
 
   React.useEffect(() => {
     if (authId) loadInbox();
   }, [authId]);
 
    // Show a loading indicator while inbox data is being fetched
+  //https://reactnative.dev/docs/activityindicator
   if (loading) {
     return (
       <View style={styles.center}>

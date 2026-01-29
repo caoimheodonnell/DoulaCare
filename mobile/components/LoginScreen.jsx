@@ -86,16 +86,23 @@ export default function LoginScreen({ navigation }) {
 
       }
 
-      // 4) Go to MainTabs
+     // 4) Go to the correct home based on role
+    if (role === "admin") {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "AdminHome" }],
+      });
+    } else {
       navigation.reset({
         index: 0,
         routes: [{ name: "MainTabs", params: { role } }],
       });
-    } catch (e) {
-      // Show a simple error message if login fails
-      Alert.alert("Login failed", e?.message || "Unknown error");
     }
-  };
+  } catch (e) {
+    Alert.alert("Login failed", e?.message || "Unknown error");
+  }
+};
+
 
   return (
     <View style={styles.container}>

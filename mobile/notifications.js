@@ -195,7 +195,7 @@ This is event-based (data-driven) rather than time-based like the
 1 day / 1 hour / 15 minute booking reminders above.
 */
 
-// Generates a unique AsyncStorage key per user + role
+// Generates a unique AsyncStorage key per user and role
 // This prevents unread counts from different accounts or roles overwriting each other
 const msgUnreadKey = (userAuthId, role) => `msg_unread_count:${role}:${userAuthId}`;
 
@@ -229,7 +229,7 @@ export async function checkMessageNotifications(userAuthId, role) {
     });
   }
 
-  // Save the current unread count so we can check for new messages later
+  // Save the current unread count so  can check for new messages later
   await AsyncStorage.setItem(key, String(count));
 
   //  so Home screens can show the badge count
