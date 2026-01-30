@@ -50,6 +50,9 @@ import MessagesInboxScreen from "./components/MessagesInboxScreen";
 import CopingToolsScreen from "./components/CopingToolsScreen";
 import AdminHomeScreen from "./components/AdminHomeScreen";
 import PendingDoulasScreen from "./components/PendingDoulasScreen";
+import AdminManageUsersScreen from "./components/AdminManageUsersScreen";
+import AdminAnalyticsScreen from "./components/AdminAnalyticsScreen";
+import DoulaPendingApproval from "./components/DoulaPendingApproval";
 
 
 
@@ -196,7 +199,7 @@ function MainTabs({ route }) {
 
 /**
  * Root navigator:
- * AppGate -> Login -> MainTabs
+ * AppGate TO Login TO MainTabs
  */
 export default function App() {
   return (
@@ -208,6 +211,18 @@ export default function App() {
   <Root.Screen name="MainTabs" component={MainTabs} />
   <Root.Screen name="AdminHome" component={AdminHomeScreen} />
   <Root.Screen name="PendingDoulas" component={PendingDoulasScreen} />
+  <Root.Screen
+  name="AdminManageUsers"
+  component={AdminManageUsersScreen} />
+  <Root.Screen name="AdminAnalytics" component={AdminAnalyticsScreen} />
+  <Root.Screen
+  name="CreateDoulaProfile"
+  component={AddUserFormMobile}
+  options={{ headerShown: false }}
+/>
+
+<Root.Screen name="DoulaPendingApproval" component={DoulaPendingApproval} />
+
 
 </Root.Navigator>
 

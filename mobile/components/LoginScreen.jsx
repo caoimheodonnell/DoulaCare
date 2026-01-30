@@ -87,17 +87,41 @@ export default function LoginScreen({ navigation }) {
       }
 
      // 4) Go to the correct home based on role
+
     if (role === "admin") {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "AdminHome" }],
-      });
-    } else {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "MainTabs", params: { role } }],
-      });
+      navigation.reset({ index: 0, routes: [{ name: "AdminHome" }] });
+      return;
     }
+
+    if (role === "doula" && authId) {
+      const res = await api.get(`/users/by-auth/${authId}`);
+      const dbUser = res.data;
+
+      const profileComplete =
+  !!dbUser?.name &&
+  !!dbUser?.location &&
+  dbUser?.price != null;
+
+
+      if (!profileComplete) {
+        navigation.reset({ index: 0, routes: [{ name: "CreateDoulaProfile" }] });
+        return;
+      }
+
+      if (!dbUser.verified) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "DoulaPendingApproval" }],
+        });
+        return;
+      }
+    }
+
+    // Mothers + approved doulas
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "MainTabs", params: { role } }],
+    });
   } catch (e) {
     Alert.alert("Login failed", e?.message || "Unknown error");
   }

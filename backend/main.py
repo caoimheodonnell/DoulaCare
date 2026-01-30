@@ -225,6 +225,8 @@ def get_users():
         users = session.exec(select(User)).all()
         return users
 
+
+
 #Update a user by record id
 @app.put("/users/{user_id}", response_model=User)
 @app.put("/users/{user_id}/", response_model=User)
@@ -396,7 +398,13 @@ def get_bookings_for_doula(doula_id: int):
        return result
 
 from uuid import UUID
-
+@app.get("/users/by-auth/{auth_id}", response_model=User)
+def get_user_by_auth(auth_id: UUID):
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.auth_id == auth_id)).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
 # This endpoint makes sure every logged in user exists in our database.
 # It creates the user the first time they sign up or log in.
 # If the user already exists, it only fills in missing information.
@@ -1306,6 +1314,26 @@ def patch_user(user_id: int, payload: UserUpdate):
         session.refresh(user)
         return user
 
+@app.patch("/users/by-auth/{auth_id}", response_model=User)
+def patch_user_by_auth(auth_id: UUID, payload: UserUpdate):
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.auth_id == auth_id)).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        data = payload.model_dump(exclude_unset=True)
+        for key, value in data.items():
+            setattr(user, key, value)
+
+        # IMPORTANT: doulas can't self-verify
+        if user.role == "doula":
+            user.verified = False
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
 @app.get("/admin/doulas/pending", response_model=List[User])
 def pending_doulas():
     with Session(engine) as session:
@@ -1314,3 +1342,81 @@ def pending_doulas():
             User.verified == False
         )
         return session.exec(stmt).all()
+
+@app.delete("/admin/users/{user_id}")
+def delete_user(user_id: int):
+    with Session(engine) as session:
+        user = session.get(User, user_id)
+        if not user:
+            raise HTTPException(404, "User not found")
+
+        session.delete(user)
+        session.commit()
+        return {"success": True}
+
+
+class AdminAnalyticsOut(BaseModel):
+    total_users: int
+    total_mothers: int
+    total_doulas: int
+    total_admins: int
+    pending_doulas: int
+    verified_doulas: int
+
+    total_bookings: int
+    bookings_requested: int
+    bookings_confirmed: int
+    bookings_declined: int
+    bookings_cancelled: int
+    bookings_paid: int
+
+    total_reviews: int
+    total_messages: int
+
+
+@app.get("/admin/analytics", response_model=AdminAnalyticsOut)
+def admin_analytics():
+    with Session(engine) as session:
+        # Users
+        users = session.exec(select(User)).all()
+        total_users = len(users)
+        total_mothers = sum(1 for u in users if u.role == "mother")
+        total_doulas = sum(1 for u in users if u.role == "doula")
+        total_admins = sum(1 for u in users if u.role == "admin")
+        pending_doulas = sum(1 for u in users if u.role == "doula" and u.verified == False)
+        verified_doulas = sum(1 for u in users if u.role == "doula" and u.verified == True)
+
+        # Bookings
+        bookings = session.exec(select(Booking)).all()
+        total_bookings = len(bookings)
+        bookings_requested = sum(1 for b in bookings if b.status == "requested")
+        bookings_confirmed = sum(1 for b in bookings if b.status == "confirmed")
+        bookings_declined = sum(1 for b in bookings if b.status == "declined")
+        bookings_cancelled = sum(1 for b in bookings if b.status == "cancelled")
+        bookings_paid = sum(1 for b in bookings if b.status == "paid")
+
+        # Reviews + Messages (if you have these models in SQLModel)
+        reviews = session.exec(select(Review)).all()
+        total_reviews = len(reviews)
+
+        messages = session.exec(select(Message)).all()
+        total_messages = len(messages)
+
+        return AdminAnalyticsOut(
+            total_users=total_users,
+            total_mothers=total_mothers,
+            total_doulas=total_doulas,
+            total_admins=total_admins,
+            pending_doulas=pending_doulas,
+            verified_doulas=verified_doulas,
+
+            total_bookings=total_bookings,
+            bookings_requested=bookings_requested,
+            bookings_confirmed=bookings_confirmed,
+            bookings_declined=bookings_declined,
+            bookings_cancelled=bookings_cancelled,
+            bookings_paid=bookings_paid,
+
+            total_reviews=total_reviews,
+            total_messages=total_messages,
+        )

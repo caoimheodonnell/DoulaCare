@@ -127,7 +127,8 @@ export default function AdminHomeScreen({ navigation }) {
 
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => comingSoon("Manage user accounts")}
+                onPress={() => navigation.navigate("AdminManageUsers")}
+
               >
                 <Ionicons
                   name="people-outline"
@@ -140,7 +141,8 @@ export default function AdminHomeScreen({ navigation }) {
 
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => comingSoon("Platform analytics")}
+                onPress={() => navigation.navigate("AdminAnalytics")}
+
               >
                 <Ionicons
                   name="stats-chart-outline"

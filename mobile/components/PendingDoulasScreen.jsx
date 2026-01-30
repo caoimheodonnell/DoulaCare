@@ -1,10 +1,34 @@
 /*
-  PendingDoulasScreen (Admin)
+  PendingDoulasScreen (Admin) - Verify / approve doulas
 
   What this screen does:
-  - Fetches all doula profiles waiting for approval (verified=false).
-  - Displays basic info + certificate link if provided.
-  - Allows an admin to approve a doula (sets verified=true) via PATCH /users/{id}.
+  - Loads all doula profiles that are waiting for approval (role="doula" and verified=false).
+  - Shows key profile info (name, location, price, experience).
+  - Lets admin open the uploaded certificate link (if present).
+  - Lets admin approve a doula:
+      - PATCH /users/{id} with { verified: true }
+      - Then refreshes the pending list.
+
+  How this is SIMILAR to your MyBookingsScreen accept/decline logic:
+  - Same “load list from backend” pattern:
+      - MyBookingsScreen:   loadBookings() - GET /bookings/by-doula-auth/{doulaAuthId}
+      - This screen:        loadPending()  -GET /admin/doulas/pending
+  - Same “action button backend update - refresh list” pattern:
+      - MyBookingsScreen:   updateStatus() - POST /bookings/{booking_id}/status - loadBookings()
+      - This screen:        approveDoula() - PATCH /users/{doula_id}            - loadPending()
+  - Same “confirm before action” pattern using Alert:
+      - MyBookingsScreen: Confirm Accept/Decline
+      - This screen:      Confirm Approve
+
+  React Native component references:
+  - View/Text:        https://reactnative.dev/docs/view , https://reactnative.dev/docs/text
+  - FlatList:         https://reactnative.dev/docs/flatlist
+  - TouchableOpacity: https://reactnative.dev/docs/touchableopacity
+  - Alert:            https://reactnative.dev/docs/alert
+  - RefreshControl:   https://reactnative.dev/docs/refreshcontrol
+  - Linking (open URLs): https://reactnative.dev/docs/linking
+
+
 */
 
 import React, { useEffect, useState } from "react";
@@ -22,10 +46,12 @@ const COLORS = {
 
 
 export default function PendingDoulasScreen({ navigation }) {
-
+ // Local state (same idea as bookings screen state)
   const [pending, setPending] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Load pending doulas (equivalent to loadBookings())
+  // Calls: GET /admin/doulas/pending
   const loadPending = async () => {
     setLoading(true);
     try {
@@ -38,10 +64,13 @@ export default function PendingDoulasScreen({ navigation }) {
     }
   };
 
+  // Load once on mount (same as your bookings screen)
   useEffect(() => {
     loadPending();
   }, []);
 
+   // Approve action (similar to updateStatus in bookings screen)
+  // Calls: PATCH /users/{id} with { verified: true }
   const approveDoula = async (doulaId) => {
     try {
       await api.patch(`/users/${doulaId}`, { verified: true });
@@ -53,10 +82,9 @@ export default function PendingDoulasScreen({ navigation }) {
     }
   };
 
+   // Open certificate link (uses React Native Linking)
   const openCertificate = async (url) => {
     if (!url) return;
-    // If your backend returns "/static/..." you may need your base URL in api to be correct.
-    // Linking.openURL needs a full URL in mobile if it's not already absolute.
     try {
       await Linking.openURL(url);
     } catch {
@@ -64,6 +92,7 @@ export default function PendingDoulasScreen({ navigation }) {
     }
   };
 
+  // Render each pending doula card (like renderBooking)
   const renderItem = ({ item }) => (
     <View style={styles.card}>
       <Text style={styles.name}>{item.name}</Text>
@@ -81,6 +110,7 @@ export default function PendingDoulasScreen({ navigation }) {
         <Text style={styles.meta}>No certificate uploaded</Text>
       )}
 
+      {/* Approve button and confirmation (same pattern as booking accept/decline confirm) */}
       <TouchableOpacity
         style={styles.approveBtn}
         onPress={() =>
@@ -112,6 +142,7 @@ export default function PendingDoulasScreen({ navigation }) {
 
       <Text style={styles.title}>Pending Doulas</Text>
 
+      {/* FlatList and pull-to-refresh (same idea as bookings screen refreshing) */}
       <FlatList
         data={pending}
         keyExtractor={(item) => String(item.id)}

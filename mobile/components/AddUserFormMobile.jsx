@@ -52,6 +52,8 @@ import {
 import * as DocumentPicker from "expo-document-picker";
 import { useNavigation } from "@react-navigation/native";
 import api, { uploadCertificate, uploadPhoto } from "../api";
+import { supabase } from "../supabaseClient";
+
 
 // Bundeled Logo
 const LOGO = require("../assets/doulacare-logo.png");
@@ -217,29 +219,42 @@ const pickAndUploadPhoto = async () => {
     }
 
 
-    try {
+
       //post to FastAPI
       //https://www.youtube.com/watch?v=aSdVU9-SxH4&t=648s - undesrtadning const and await and get
-      await api.post("/users", {
-        name: name.trim(),
-        location: location.trim(),
-        price: priceNum,
-        price_bundle: bundleNum,
-        years_experience: yearsNum,
-        photo_url: photoUrl.trim() || null,
-        role: "doula",// ensureing role is set to doula
-        verified: false,
-        email: email.trim() || null,
-        qualifications: qualifications.trim() || null,
-        services: services.trim() || null,
-        bio: bio.trim() || null,
-        intro_video_url: introVideoUrl.trim() || null,
-        certificate_url: certificateUrl.trim() || null,
-      });
+      try {
+  // Get logged-in user auth ID
+  const { data } = await supabase.auth.getSession();
+  const authId = data?.session?.user?.id;
+
+  if (!authId) {
+    showMessage("Error", "No logged in user session found.");
+    return;
+  }
+
+  // Update this user's profile (not create a new user)
+  await api.patch(`/users/by-auth/${authId}`, {
+    name: name.trim(),
+    location: location.trim(),
+    price: priceNum,
+    price_bundle: bundleNum,
+    years_experience: yearsNum,
+    photo_url: photoUrl.trim() || null,
+
+    //Admin controls this
+    verified: false,
+
+    email: email.trim() || null,
+    qualifications: qualifications.trim() || null,
+    services: services.trim() || null,
+    bio: bio.trim() || null,
+    intro_video_url: introVideoUrl.trim() || null,
+    certificate_url: certificateUrl.trim() || null,
+  });
 
       clearForm();
       onDoulaAdded?.();
-      showMessage("Success", "Doula profile created.");
+      showMessage("Request Submitted", "Your doula profile has been submitted. An admin must approve it.");
     } catch (err) {
       const msg = err?.response
         ? `${err.response.status} ${err.response.statusText}\n${JSON.stringify(
@@ -269,6 +284,7 @@ const pickAndUploadPhoto = async () => {
             - Image: https://reactnative.dev/docs/image
             - TouchableOpacity: https://reactnative.dev/docs/touchableopacity
         */}
+
         <TouchableOpacity onPress={() => navigation.navigate("Home")}>
           <Image
             source={LOGO}
@@ -286,6 +302,13 @@ const pickAndUploadPhoto = async () => {
         >
           Create a Doula Profile
         </Text>
+        <TouchableOpacity
+  onPress={() => navigation.reset({ index: 0, routes: [{ name: "Login" }] })}
+  style={{ alignSelf: "flex-start", marginBottom: 10 }}
+>
+  <Text style={{ color: COLORS.accent, fontWeight: "700" }}>← Back</Text>
+</TouchableOpacity>
+
         {/* Where the user inputs information in the text box
         */}
         <View style={styles.form}>
