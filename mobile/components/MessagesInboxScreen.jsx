@@ -49,7 +49,11 @@ const COLORS = {
 
 export default function MessagesInboxScreen({ navigation, route }) {
   // Role determines whether unread counts are based on read_by_mother or read_by_doula
-  const role = route.params?.role || "mother"; // pass "doula" or "mother"
+  const role =
+    route?.params?.role ??
+    route?.params?.params?.role ?? // (nested navigation case)
+    "mother"; // pass "doula" or "mother"
+
    // Stores the authenticated user's Supabase auth UUID
   const [authId, setAuthId] = React.useState(null);
 
@@ -74,6 +78,9 @@ export default function MessagesInboxScreen({ navigation, route }) {
     if (!authId) return;
     try {
       setLoading(true);
+
+       console.log("LOAD INBOX", { authId, role });
+
       const res = await api.get("/messages/inbox", {
         params: { user_auth_id: authId, role },
       });
@@ -90,8 +97,9 @@ export default function MessagesInboxScreen({ navigation, route }) {
   // Reference: useEffect pattern
 
   React.useEffect(() => {
-    if (authId) loadInbox();
-  }, [authId]);
+  if (authId) loadInbox();
+}, [authId, role]);
+
 
    // Show a loading indicator while inbox data is being fetched
   //https://reactnative.dev/docs/activityindicator

@@ -288,9 +288,7 @@ const goMessages = () => {
     color={COLORS.accent}
     style={styles.menuIcon}
   />
-  <Text style={styles.menuItemText}>
-    Messages{unreadCount > 0 ? ` (${unreadCount})` : ""}
-  </Text>
+  <Text style={styles.menuItemText}>Messages</Text>
 </TouchableOpacity>
 
 

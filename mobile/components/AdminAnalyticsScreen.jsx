@@ -1,10 +1,50 @@
+// components/AdminAnalyticsScreen.jsx
 /*
-  AdminAnalyticsScreen (Admin)
+  Purpose:
+    - This is the admin “analytics dashboard” screen.
+    - It loads summary stats from your FastAPI endpoint:
+        GET /admin/analytics
+      and displays them in simple “stat cards”.
 
-  What this screen does:
-  - Fetches platform analytics from GET /admin/analytics.
-  - Displays booking counts and user engagement metrics.
-  - Includes in-page back button (no header required).
+  How this is similar to your other screens:
+    - Same loading pattern as PendingDoulasScreen / AdminManageUsersScreen:
+        - local state for data and loading
+        - fetch on mount (useEffect)
+        - pull-to-refresh (RefreshControl)
+        - show Alert on error
+      This is the same “fetch  to setState to render list/cards”
+
+    - Similar to your booking screens:
+        - you call a backend endpoint (api.get)
+        - store the response in state
+        - render UI based on whether data exists
+      (booking screen is more complex because it filters by date and updates status,
+       but the fetch and state and refresh pattern is the same.)
+
+  React / React Native concepts used:
+    - useState / useEffect hooks:
+      https://react.dev/reference/react/useState
+      https://react.dev/reference/react/useEffect
+    - Layout and text:
+      View: https://reactnative.dev/docs/view
+      Text: https://reactnative.dev/docs/text
+    - Scroll container:
+      ScrollView: https://reactnative.dev/docs/scrollview
+    - Pressable back button:
+      TouchableOpacity: https://reactnative.dev/docs/touchableopacity
+      navigation.goBack(): https://reactnavigation.org/docs/navigation-prop/#goback
+    - Pull-to-refresh:
+      RefreshControl: https://reactnative.dev/docs/refreshcontrol
+    - Error feedback:
+      Alert: https://reactnative.dev/docs/alert
+
+  Backend dependency:
+    - Expects your FastAPI endpoint /admin/analytics to return:
+        total_users, total_mothers, total_doulas, total_admins,
+        pending_doulas, verified_doulas,
+        total_bookings, bookings_requested, bookings_confirmed, bookings_declined, bookings_cancelled, bookings_paid,
+        total_reviews, total_messages
+
 */
 
 import React, { useEffect, useState } from "react";
@@ -20,6 +60,13 @@ const COLORS = {
   border: "#EBDAD2",
 };
 
+/*
+  StatCard component
+  - Similar idea to Booking cards:
+    it receives props (title/value) and renders a styled “card” container.
+  - Props usage in React:
+    https://react.dev/learn/passing-props-to-a-component
+*/
 function StatCard({ title, value }) {
   return (
     <View style={styles.card}>
@@ -30,9 +77,18 @@ function StatCard({ title, value }) {
 }
 
 export default function AdminAnalyticsScreen({ navigation }) {
+  // data: stores the backend analytics payload
+  // loading: drives RefreshControl spinner and prevents showing old UI
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
 
+   /*
+    loadAnalytics()
+    - Fetches analytics from FastAPI (GET /admin/analytics)
+    - Same try/catch/finally pattern in:
+        - PendingDoulasScreen (api.get and Alert on error)
+        - AdminManageUsersScreen (api.get and Alert on error)
+  */
   const loadAnalytics = async () => {
     setLoading(true);
     try {
@@ -51,6 +107,9 @@ export default function AdminAnalyticsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      {/* In-page Back button (so you’re not dependent on header/back UI)
+          goBack() pops the current screen off the stack.
+      */}
       <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 12 }}>
         <Text style={{ color: COLORS.accent, fontWeight: "700" }}>← Back to Admin Home</Text>
       </TouchableOpacity>
@@ -65,6 +124,7 @@ export default function AdminAnalyticsScreen({ navigation }) {
           <Text style={styles.empty}>No data yet.</Text>
         ) : (
           <>
+              {/* USERS SECTION */}
             <Text style={styles.section}>Users</Text>
             <View style={styles.grid}>
               <StatCard title="Total users" value={data.total_users} />
@@ -74,7 +134,11 @@ export default function AdminAnalyticsScreen({ navigation }) {
               <StatCard title="Pending doulas" value={data.pending_doulas} />
               <StatCard title="Verified doulas" value={data.verified_doulas} />
             </View>
-
+           {/* BOOKINGS SECTION
+                These counts directly mirror booking workflow:
+                - Requested / Confirmed / Declined / Cancelled / Paid
+                (same status values used in booking accept/decline logic)
+            */}
             <Text style={styles.section}>Bookings</Text>
             <View style={styles.grid}>
               <StatCard title="Total bookings" value={data.total_bookings} />
@@ -84,7 +148,7 @@ export default function AdminAnalyticsScreen({ navigation }) {
               <StatCard title="Cancelled" value={data.bookings_cancelled} />
               <StatCard title="Paid" value={data.bookings_paid} />
             </View>
-
+            {/* ENGAGEMENT SECTION */}
             <Text style={styles.section}>Engagement</Text>
             <View style={styles.grid}>
               <StatCard title="Reviews" value={data.total_reviews} />
@@ -96,7 +160,7 @@ export default function AdminAnalyticsScreen({ navigation }) {
     </View>
   );
 }
-
+//https://reactnative.dev/docs/stylesheet- Modified for admin analytiucs
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background, padding: 16, paddingTop: 48 },
   title: { fontSize: 22, fontWeight: "800", color: COLORS.accent, marginBottom: 10 },

@@ -1117,20 +1117,23 @@ def unread_count(user_auth_id: UUID, role: str):
             unread = session.exec(
                 select(Message).where(
                     Message.mother_auth_id == user_auth_id,
-                    Message.read_by_mother == False
+                    Message.read_by_mother == False,
+                    Message.sender_role == "doula",   # only messages from the other side
                 )
             ).all()
         elif role == "doula":
             unread = session.exec(
                 select(Message).where(
                     Message.doula_auth_id == user_auth_id,
-                    Message.read_by_doula == False
+                    Message.read_by_doula == False,
+                    Message.sender_role == "mother",  # only messages from the other side
                 )
             ).all()
         else:
             raise HTTPException(400, "Invalid role")
 
         return {"count": len(unread)}
+
 
 #Request body for marking messages as read in a private mother/doula chat
 #Identifies the conversation and updates read flags based on the viewer's role
@@ -1147,6 +1150,7 @@ class MarkReadBody(BaseModel):
 @app.post("/messages/mark-read")
 def mark_read(body: MarkReadBody):
     with Session(engine) as session:
+        # only update messages in this conversation
         msgs = session.exec(
             select(Message).where(
                 Message.mother_auth_id == body.mother_auth_id,
@@ -1154,18 +1158,24 @@ def mark_read(body: MarkReadBody):
             )
         ).all()
 
-        # Update flags based on viewer role
-        for m in msgs:
-            if body.role == "mother":
-                m.read_by_mother = True
-            elif body.role == "doula":
-                m.read_by_doula = True
-            else:
-                raise HTTPException(400, "Invalid role")
+        if body.role == "mother":
+            # mother is viewing -> only mark messages sent by doula
+            for m in msgs:
+                if m.sender_role == "doula":
+                    m.read_by_mother = True
+
+        elif body.role == "doula":
+            # doula is viewing -> only mark messages sent by mother
+            for m in msgs:
+                if m.sender_role == "mother":
+                    m.read_by_doula = True
+        else:
+            raise HTTPException(400, "Invalid role")
 
         session.add_all(msgs)
         session.commit()
         return {"ok": True}
+
 
 #Loads the full message history for a single mother to doula conversation
 #using a REST GET endpoint instead of WebSockets.
@@ -1283,6 +1293,13 @@ def inbox(user_auth_id: UUID, role: str):
         return list(threads.values())
 
 
+
+
+
+#Defines which User fields can be partially updated via PATCH requests.
+#All fields are optional, allowing safe updates (no overwriting existing data).
+#https://docs.pydantic.dev/latest/concepts/models/
+
 class UserUpdate(BaseModel):
     verified: Optional[bool] = None
     certificate_url: Optional[str] = None
@@ -1297,7 +1314,9 @@ class UserUpdate(BaseModel):
     years_experience: Optional[int] = None
     email: Optional[str] = None
 
-
+# PATCH /users/{user_id}
+# Admin-style update: edits a user by internal database ID (e.g., approve a doula, correct account data).
+# FastAPI Path Params (PATCH) https://fastapi.tiangolo.com/tutorial/path-params/
 @app.patch("/users/{user_id}", response_model=User)
 def patch_user(user_id: int, payload: UserUpdate):
     with Session(engine) as session:
@@ -1314,6 +1333,11 @@ def patch_user(user_id: int, payload: UserUpdate):
         session.refresh(user)
         return user
 
+
+# PATCH /users/by-auth/{auth_id}
+# Self-update: updates the currently logged-in user's row using Supabase auth UUID (safer than exposing DB IDs).
+# Doulas cannot set verified=true themselves (admin approval only).
+#SQLModel select().where() https://sqlmodel.tiangolo.com/tutorial/select/
 @app.patch("/users/by-auth/{auth_id}", response_model=User)
 def patch_user_by_auth(auth_id: UUID, payload: UserUpdate):
     with Session(engine) as session:
@@ -1334,6 +1358,22 @@ def patch_user_by_auth(auth_id: UUID, payload: UserUpdate):
         session.refresh(user)
         return user
 
+
+# GET /users/by-auth/{auth_id}
+# Fetches the logged-in user's database row using their Supabase auth UUID (used for login routing / profile checks).
+# Reference: Supabase session user.id is a UUID https://supabase.com/docs/reference/javascript/auth-getsession
+@app.get("/users/by-auth/{auth_id}", response_model=User)
+def get_user_by_auth(auth_id: UUID):
+    with Session(engine) as session:
+        user = session.exec(select(User).where(User.auth_id == auth_id)).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user
+
+
+#Returns all doula profiles awaiting admin approval (verified = false).
+#Used by the PendingDoulasScreen for admin verification workflow.
+#https://sqlmodel.tiangolo.com/tutorial/select/
 @app.get("/admin/doulas/pending", response_model=List[User])
 def pending_doulas():
     with Session(engine) as session:
@@ -1343,6 +1383,10 @@ def pending_doulas():
         )
         return session.exec(stmt).all()
 
+
+#Allows admins to permanently remove fake, inactive, or abusive user accounts.
+#Used in the AdminManageUsersScreen.
+#https://fastapi.tiangolo.com/tutorial/path-params/#delete-requests
 @app.delete("/admin/users/{user_id}")
 def delete_user(user_id: int):
     with Session(engine) as session:
@@ -1373,7 +1417,9 @@ class AdminAnalyticsOut(BaseModel):
     total_reviews: int
     total_messages: int
 
-
+#Defines the structured analytics data returned to the admin dashboard.
+#Separates API response shape from database models.
+#https://fastapi.tiangolo.com/tutorial/response-model/
 @app.get("/admin/analytics", response_model=AdminAnalyticsOut)
 def admin_analytics():
     with Session(engine) as session:
@@ -1395,7 +1441,7 @@ def admin_analytics():
         bookings_cancelled = sum(1 for b in bookings if b.status == "cancelled")
         bookings_paid = sum(1 for b in bookings if b.status == "paid")
 
-        # Reviews + Messages (if you have these models in SQLModel)
+        # Reviews and Messages
         reviews = session.exec(select(Review)).all()
         total_reviews = len(reviews)
 

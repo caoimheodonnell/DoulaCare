@@ -36,6 +36,44 @@
   - REST-based message APIs:
     https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
 */
+/*
+  Private Chat Screen
+
+  What this screen does:
+  - Displays a private 1-to-1 message thread between a mother and a doula.
+  - Fetches the full message history for a specific conversation using
+    GET /messages/thread (mother_auth_id and doula_auth_id).
+  - Allows the logged-in user to send messages using POST /messages/send.
+  - Marks messages as read for the current user when the screen is opened
+    using POST /messages/mark-read.
+  - Updates the UI immediately after sending a message.
+
+  How this differs from CommunityChat:
+  - This screen is private (only one mother and one doula).
+  - Messages are persisted in the SQL database (messages table).
+  - Message visibility is role-based (read_by_mother / read_by_doula).
+  - Uses REST API calls instead of WebSockets.
+
+  Similar patterns to CommunityChat:
+  - Uses FlatList to render a scrolling list of messages.
+  - Aligns message bubbles left/right depending on sender.
+  - Uses controlled TextInput for composing messages.
+
+  References used:
+  - React Native FlatList:
+    https://reactnative.dev/docs/flatlist
+  - React Native TextInput:
+    https://reactnative.dev/docs/textinput
+  - React Native TouchableOpacity:
+    https://reactnative.dev/docs/touchableopacity
+  - React hooks (useEffect / useState):
+    https://react.dev/reference/react/useEffect
+    https://react.dev/reference/react/useState
+  - Chat UI patterns (bubble alignment with Flexbox):
+    https://reactnative.dev/docs/flexbox
+  - REST-based message APIs:
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods
+*/
 import React from "react";
 import {
   View,
@@ -48,6 +86,7 @@ import {
 } from "react-native";
 import { supabase } from "../supabaseClient";
 import api from "../api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const COLORS = {
   background: "#FFF7F2",
@@ -104,6 +143,17 @@ export default function PrivateChatScreen({ route }) {
         doula_auth_id: doulaAuthId,
         role,
       });
+      //  Reset local notification baseline after reading messages
+// so HomeScreen doesn't think "new unread messages" exist for this user/role
+const unreadRes = await api.get("/messages/unread-count", {
+  params: { user_auth_id: myAuthId, role },
+});
+
+await AsyncStorage.setItem(
+  `msg_unread_count:${role}:${myAuthId}`,
+  String(unreadRes.data?.count ?? 0)
+);
+
     } catch (e) {
       console.warn("Thread load failed", e?.message || e);
       setMessages([]);
@@ -114,8 +164,9 @@ export default function PrivateChatScreen({ route }) {
 
    // Load the conversation when both participant IDs are available
   React.useEffect(() => {
-    if (motherAuthId && doulaAuthId) loadThread();
-  }, [motherAuthId, doulaAuthId]);
+  if (myAuthId && motherAuthId && doulaAuthId) loadThread();
+}, [myAuthId, motherAuthId, doulaAuthId]);
+
 
     // Send a new message using a REST POST request
   // Server determines sender role
@@ -246,4 +297,3 @@ const styles = StyleSheet.create({
   sendText: { color: "white", fontWeight: "800" },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
 });
-

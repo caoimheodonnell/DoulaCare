@@ -158,7 +158,7 @@ export default function PendingDoulasScreen({ navigation }) {
     </View>
   );
 }
-
+//https://reactnative.dev/docs/stylesheet- Modified for pending doula screen
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background, padding: 16, paddingTop: 48 },
   title: { fontSize: 22, fontWeight: "800", color: COLORS.accent, marginBottom: 12 },

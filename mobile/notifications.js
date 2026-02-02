@@ -214,6 +214,12 @@ export async function checkMessageNotifications(userAuthId, role) {
     // Load previously stored unread count from AsyncStorage
   const key = msgUnreadKey(userAuthId, role);
   const prevRaw = await AsyncStorage.getItem(key);
+
+  if (prevRaw === null) {
+    await AsyncStorage.setItem(key, String(count));
+    return count;
+  }
+
   const prev = prevRaw ? Number(prevRaw) : 0;
 
   // Trigger a local notification only if unread count increased

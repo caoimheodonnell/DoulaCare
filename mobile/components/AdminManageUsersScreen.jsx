@@ -1,8 +1,8 @@
 /*
-  AdminManageUsersScreen (Admin) — Manage user accounts
+  AdminManageUsersScreen (Admin) - Manage user accounts
 
   What this screen does:
-  - Displays all user accounts (mothers + doulas + admins if they exist).
+  - Displays all user accounts (mothers and doulas and admins if they exist).
   - Lets an admin delete fake / unused accounts.
   - Uses your existing backend endpoints:
       - GET /users                (loads all users)
@@ -13,8 +13,8 @@
       - MyBookingsScreen:  GET /bookings/by-doula-auth/{doulaId}
       - This screen:       GET /users
   - Same "action button triggers backend update, then refresh list" pattern:
-      - MyBookingsScreen:  updateStatus() -> POST /bookings/{id}/status -> loadBookings()
-      - This screen:       deleteUser()   -> DELETE /admin/users/{id}  -> loadUsers()
+      - MyBookingsScreen:  updateStatus() to  POST /bookings/{id}/status to loadBookings()
+      - This screen:       deleteUser()   to  DELETE /admin/users/{id}  to loadUsers()
   - Same "confirm action" pattern using Alert:
       - MyBookingsScreen: Alert.confirm before Accept/Decline
       - This screen:      Alert.confirm before Delete
@@ -99,6 +99,7 @@ export default function AdminManageUsersScreen({ navigation }) {
         Role: {item.role} • {item.email || "No email"}
       </Text>
 {/* Delete action (like Accept/Decline buttons in bookings) */}
+      {/* ON press -https://reactnative.dev/docs/handling-touches*/}
       <TouchableOpacity
         style={styles.deleteBtn}
         onPress={() =>
@@ -152,7 +153,7 @@ export default function AdminManageUsersScreen({ navigation }) {
     </View>
   );
 }
-
+//https://reactnative.dev/docs/stylesheet- Modified for admin manage users
 const styles = StyleSheet.create({
   container: {
     flex: 1,

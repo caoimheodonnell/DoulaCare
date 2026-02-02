@@ -87,27 +87,30 @@ export default function LoginScreen({ navigation }) {
       }
 
      // 4) Go to the correct home based on role
-
+      //https://react.dev/learn/conditional-rendering
+// Admins always go straight to the admin dashboard
     if (role === "admin") {
       navigation.reset({ index: 0, routes: [{ name: "AdminHome" }] });
       return;
     }
-
+// Additional checks for doulas (profile and approval gate)
     if (role === "doula" && authId) {
+      // Fetch this doula's profile from the database using their auth I
       const res = await api.get(`/users/by-auth/${authId}`);
       const dbUser = res.data;
 
+      // Minimum profile completion required before approval
       const profileComplete =
   !!dbUser?.name &&
   !!dbUser?.location &&
   dbUser?.price != null;
 
-
+  // If profile is incomplete, force doula to finish it
       if (!profileComplete) {
         navigation.reset({ index: 0, routes: [{ name: "CreateDoulaProfile" }] });
         return;
       }
-
+ // If profile exists but is not yet approved by admin
       if (!dbUser.verified) {
         navigation.reset({
           index: 0,
@@ -117,7 +120,7 @@ export default function LoginScreen({ navigation }) {
       }
     }
 
-    // Mothers + approved doulas
+    // Mothers and approved doulas
     navigation.reset({
       index: 0,
       routes: [{ name: "MainTabs", params: { role } }],

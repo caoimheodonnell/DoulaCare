@@ -1,26 +1,40 @@
-/*
-  Admin Home Screen
 
-  What this screen does:
-  - Acts as the landing page for admin users after login.
-  - Displays the DoulaCare branding and an admin dashboard message.
-  - Provides a menu with admin-only actions (placeholders for now).
-  - Allows the admin to log out of the application.
+/*
+  AdminHomeScreen (Admin Landing Page) - Same layout as doula and mother home
 
   Navigation:
-  - This screen is reached from LoginScreen when role === "admin".
-  - No navigation to other admin pages yet (prevents route errors).
-  - Future admin screens (verify doulas, manage users, analytics)
-    can be added later and wired into the menu.
+    - This screen is reached from LoginScreen when role === "admin".
+    - Uses `navigation.navigate()` to open admin-only screens registered in your Root stack:
+        - "PendingDoulas"      (verify doulas)
+        - "AdminManageUsers"   (delete users)
+        - "AdminAnalytics"     (stats)
+      React Navigation (navigate / reset):
+        - https://reactnavigation.org/docs/navigation-prop/
+        - https://reactnavigation.org/docs/navigation-actions/
 
-  React Native components used:
-  - View, Text: layout and labels
-  - TouchableOpacity: pressable menu items and buttons
-  - Image: displays DoulaCare logo
-  - Modal: overlay menu (same pattern as Mother/Doula Home screens)
+    - Uses `navigation.reset()` on logout to return to AppGate (clears back history),
+      matching the pattern you use in Mother/Doula Home screens.
+      https://reactnavigation.org/docs/navigation-prop/#reset
 
-  Icons:
-  - Ionicons from @expo/vector-icons
+  UI / Components:
+    - View/Text: core layout and labels
+      https://reactnative.dev/docs/view
+      https://reactnative.dev/docs/text
+    - TouchableOpacity: pressable buttons and menu items
+      https://reactnative.dev/docs/touchableopacity
+    - Image: shows DoulaCare logo from local assets
+      https://reactnative.dev/docs/image
+    - Modal: overlay dropdown menu (same pattern as HomeScreen.jsx menu)
+      https://reactnative.dev/docs/modal
+    - Alert: shows "coming soon" placeholder messages
+      https://reactnative.dev/docs/alert
+    - Ionicons from @expo/vector-icons (same as your HomeScreen)
+      https://icons.expo.fyi/
+      https://ionic.io/ionicons
+
+
+    - Acts as the admin dashboard entry point.
+
 */
 import React, { useState } from "react";
 import {
@@ -47,24 +61,28 @@ const COLORS = {
 const LOGO = require("../assets/doulacare-logo.png");
 
 export default function AdminHomeScreen({ navigation }) {
+   // Local UI state for showing/hiding the modal menu
+  // useState is used for local component state
+  // https://react.dev/reference/react/useState
   const [menuVisible, setMenuVisible] = useState(false);
 
-  // Menu helpers
+
+   // Menu helpers (same pattern as Mother/Doula Home screens)
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
 
-  // Placeholder handlers (no navigation yet)
-  const comingSoon = (feature) => {
-    closeMenu();
-    Alert.alert("Coming soon", `${feature} will be added next.`);
-  };
-
+// Navigate to the pending doula approvals list
+  // This matches your backend logic:
+  // GET /admin/doulas/pending -> doulas where verified == false
   const goPendingDoulas = () => {
   closeMenu();
   navigation.navigate("PendingDoulas");
 };
 
-  // Logout helper
+   // Logout helper:
+  // - calls signOut() (Supabase logout)
+  // - resets navigation stack to AppGate so you can't go "Back" into admin pages
+  // https://reactnavigation.org/docs/navigation-prop/#reset
   const doLogout = async () => {
     await signOut();
     closeMenu();
@@ -80,7 +98,10 @@ export default function AdminHomeScreen({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* MAIN CONTENT */}
+
+      {/* MAIN CONTENT (center hero section)
+          View/Text/Image mirrors your Mother/Doula home layout
+      */}
       <View style={styles.hero}>
         <Image source={LOGO} style={styles.logo} />
         <Text style={styles.title}>DoulaCare</Text>
@@ -153,18 +174,7 @@ export default function AdminHomeScreen({ navigation }) {
                 <Text style={styles.menuItemText}>Analytics</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => comingSoon("Postpartum resources")}
-              >
-                <Ionicons
-                  name="book-outline"
-                  size={20}
-                  color={COLORS.accent}
-                  style={styles.menuIcon}
-                />
-                <Text style={styles.menuItemText}>Resources</Text>
-              </TouchableOpacity>
+
 
               {/* LOGOUT */}
               <TouchableOpacity style={styles.menuItem} onPress={doLogout}>
@@ -184,7 +194,7 @@ export default function AdminHomeScreen({ navigation }) {
   );
 }
 
-// Styles (mirrors Mother/Doula HomeScreen)
+//https://reactnative.dev/docs/stylesheet- Modified for admin home screen same as mother and doula
 const styles = StyleSheet.create({
   container: {
     flex: 1,
