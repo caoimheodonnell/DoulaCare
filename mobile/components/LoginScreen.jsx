@@ -95,7 +95,7 @@ export default function LoginScreen({ navigation }) {
     }
 // Additional checks for doulas (profile and approval gate)
     if (role === "doula" && authId) {
-      // Fetch this doula's profile from the database using their auth I
+      // Fetch this doula's profile from the database using their auth ID
       const res = await api.get(`/users/by-auth/${authId}`);
       const dbUser = res.data;
 
@@ -111,6 +111,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
  // If profile exists but is not yet approved by admin
+      //Brings the user to the pending doula apporval page not to the doula home just yet
       if (!dbUser.verified) {
         navigation.reset({
           index: 0,
@@ -120,7 +121,7 @@ export default function LoginScreen({ navigation }) {
       }
     }
 
-    // Mothers and approved doulas
+    // Mothers and approved doulas go to each of their home pages
     navigation.reset({
       index: 0,
       routes: [{ name: "MainTabs", params: { role } }],

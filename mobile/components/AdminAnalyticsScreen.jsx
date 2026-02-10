@@ -6,20 +6,20 @@
         GET /admin/analytics
       and displays them in simple “stat cards”.
 
-  How this is similar to your other screens:
+  How this is similar to other screens:
     - Same loading pattern as PendingDoulasScreen / AdminManageUsersScreen:
         - local state for data and loading
         - fetch on mount (useEffect)
         - pull-to-refresh (RefreshControl)
         - show Alert on error
-      This is the same “fetch  to setState to render list/cards”
+      This is the same fetch  to setState to render list/cards
 
-    - Similar to your booking screens:
-        - you call a backend endpoint (api.get)
+    - Similar to  booking screens:
+        -  call a backend endpoint (api.get)
         - store the response in state
         - render UI based on whether data exists
       (booking screen is more complex because it filters by date and updates status,
-       but the fetch and state and refresh pattern is the same.)
+       but the fetch and state and refresh pattern is the same)
 
   React / React Native concepts used:
     - useState / useEffect hooks:
@@ -32,14 +32,13 @@
       ScrollView: https://reactnative.dev/docs/scrollview
     - Pressable back button:
       TouchableOpacity: https://reactnative.dev/docs/touchableopacity
-      navigation.goBack(): https://reactnavigation.org/docs/navigation-prop/#goback
     - Pull-to-refresh:
       RefreshControl: https://reactnative.dev/docs/refreshcontrol
     - Error feedback:
       Alert: https://reactnative.dev/docs/alert
 
   Backend dependency:
-    - Expects your FastAPI endpoint /admin/analytics to return:
+    - Expects  FastAPI endpoint /admin/analytics to return:
         total_users, total_mothers, total_doulas, total_admins,
         pending_doulas, verified_doulas,
         total_bookings, bookings_requested, bookings_confirmed, bookings_declined, bookings_cancelled, bookings_paid,
@@ -107,7 +106,7 @@ export default function AdminAnalyticsScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      {/* In-page Back button (so you’re not dependent on header/back UI)
+      {/* In-page Back button (so  not dependent on header/back UI)
           goBack() pops the current screen off the stack.
       */}
       <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginBottom: 12 }}>

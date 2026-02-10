@@ -25,6 +25,7 @@ const LOGO = require("../assets/doulacare-logo.png");
 export default function DoulaPendingApproval({ navigation }) {
     // Logs the user out and clears navigation history
   // Prevents returning to protected screens via back gesture
+    //simialr to the logout function in menu for doula,mother and admin home screen
   const logout = async () => {
     await signOut();
     navigation.reset({ index: 0, routes: [{ name: "Login" }] });

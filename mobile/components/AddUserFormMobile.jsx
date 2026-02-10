@@ -232,18 +232,35 @@ const pickAndUploadPhoto = async () => {
     return;
   }
 
-  // Update this user's profile (not create a new user)
+
+        /*
+  Submits or updates the logged-in user's doula profile.
+
+  What this does:
+  - Sends a PATCH request to update the existing user record (not create a new one).
+  - Uses the user's Supabase auth UUID to safely identify their profile.
+  - Resets verified to false so admin approval is required for any changes.
+  - Supports optional profile fields (empty values are stored as null).
+  - Shows feedback to the user after submission
+  https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PATCH
+*/
+
   await api.patch(`/users/by-auth/${authId}`, {
+    // Basic public profile details
     name: name.trim(),
     location: location.trim(),
+    // Pricing fields converted to numbers earlier
     price: priceNum,
     price_bundle: bundleNum,
+     // Experience information
     years_experience: yearsNum,
+    // Optional media uploads
     photo_url: photoUrl.trim() || null,
 
     //Admin controls this
     verified: false,
 
+    // Optional profile details (null if left empty)
     email: email.trim() || null,
     qualifications: qualifications.trim() || null,
     services: services.trim() || null,
@@ -254,6 +271,7 @@ const pickAndUploadPhoto = async () => {
 
       clearForm();
       onDoulaAdded?.();
+      // Show confirmation message to the user
       showMessage("Request Submitted", "Your doula profile has been submitted. An admin must approve it.");
     } catch (err) {
       const msg = err?.response

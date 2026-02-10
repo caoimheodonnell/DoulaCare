@@ -1159,13 +1159,13 @@ def mark_read(body: MarkReadBody):
         ).all()
 
         if body.role == "mother":
-            # mother is viewing -> only mark messages sent by doula
+            # mother is viewing to only mark messages sent by doula
             for m in msgs:
                 if m.sender_role == "doula":
                     m.read_by_mother = True
 
         elif body.role == "doula":
-            # doula is viewing -> only mark messages sent by mother
+            # doula is viewing to only mark messages sent by mother
             for m in msgs:
                 if m.sender_role == "mother":
                     m.read_by_doula = True
@@ -1314,42 +1314,54 @@ class UserUpdate(BaseModel):
     years_experience: Optional[int] = None
     email: Optional[str] = None
 
-# PATCH /users/{user_id}
 # Admin-style update: edits a user by internal database ID (e.g., approve a doula, correct account data).
+# Adapted from ChatGpt - https://chatgpt.com/c/698366b9-615c-8388-b668-20fbe77ceee
+# I simplified it by using FastAPI (same as other endpoints )app routes instead of APIRouter, removed async/AsyncSession,
+# and used SQLModel's session.get() instead of select() and execute().
+# Unlike the reference, admin access is handled elsewhere in my app (not with Depends(require_admin)),
+# and field updates are applied directly with setattr() instead of a shared apply_patch helper.
 # FastAPI Path Params (PATCH) https://fastapi.tiangolo.com/tutorial/path-params/
+#https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PATCH-Uses PATCH for partial updates (only provided fields are modified).
 @app.patch("/users/{user_id}", response_model=User)
 def patch_user(user_id: int, payload: UserUpdate):
     with Session(engine) as session:
+        # Fetch user by database ID
         user = session.get(User, user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
+        # Only apply fields provided in the request
         data = payload.model_dump(exclude_unset=True)
         for key, value in data.items():
             setattr(user, key, value)
-
+        # Save changes
         session.add(user)
         session.commit()
         session.refresh(user)
         return user
 
-
-# PATCH /users/by-auth/{auth_id}
 # Self-update: updates the currently logged-in user's row using Supabase auth UUID (safer than exposing DB IDs).
+# Adapted from ChatGpt - https://chatgpt.com/c/698366b9-615c-8388-b668-20fbe77ceee
+# Instead of using Depends(get_current_user), this version updates the user
+# by passing their Supabase auth_id directly in the URL.
+# Different to the reference: instead of rejecting verified=True with a 403, I always force user.verified = False for doulas
+# after applying updates, so doulas can never keep themselves verified (admin-only approval).
 # Doulas cannot set verified=true themselves (admin approval only).
 #SQLModel select().where() https://sqlmodel.tiangolo.com/tutorial/select/
+#https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods/PATCH -Uses PATCH for partial updates (only provided fields are modified).
 @app.patch("/users/by-auth/{auth_id}", response_model=User)
 def patch_user_by_auth(auth_id: UUID, payload: UserUpdate):
     with Session(engine) as session:
+        # Find user by Supabase auth ID
         user = session.exec(select(User).where(User.auth_id == auth_id)).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-
+        # Apply only provided fields
         data = payload.model_dump(exclude_unset=True)
         for key, value in data.items():
             setattr(user, key, value)
 
-        # IMPORTANT: doulas can't self-verify
+        # Prevent doulas from verifying themselves
         if user.role == "doula":
             user.verified = False
 
@@ -1359,12 +1371,14 @@ def patch_user_by_auth(auth_id: UUID, payload: UserUpdate):
         return user
 
 
-# GET /users/by-auth/{auth_id}
+
 # Fetches the logged-in user's database row using their Supabase auth UUID (used for login routing / profile checks).
-# Reference: Supabase session user.id is a UUID https://supabase.com/docs/reference/javascript/auth-getsession
+# Used during login and routing to determine role, verification status,and whether a doula profile is complete.
+#Supabase session user.id is a UUID https://supabase.com/docs/reference/javascript/auth-getsession
 @app.get("/users/by-auth/{auth_id}", response_model=User)
 def get_user_by_auth(auth_id: UUID):
     with Session(engine) as session:
+        # Find user by Supabase auth ID
         user = session.exec(select(User).where(User.auth_id == auth_id)).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -1377,16 +1391,17 @@ def get_user_by_auth(auth_id: UUID):
 @app.get("/admin/doulas/pending", response_model=List[User])
 def pending_doulas():
     with Session(engine) as session:
+        # Build a query to find unverified doula accounts
         stmt = select(User).where(
-            User.role == "doula",
-            User.verified == False
+            User.role == "doula",# restrict to doulas only
+            User.verified == False # exclude approved doulas
         )
         return session.exec(stmt).all()
 
 
 #Allows admins to permanently remove fake, inactive, or abusive user accounts.
 #Used in the AdminManageUsersScreen.
-#https://fastapi.tiangolo.com/tutorial/path-params/#delete-requests
+#https://fastapi.tiangolo.com/tutorial/path-params/#delete-requests - nstead of app.get its app.delete
 @app.delete("/admin/users/{user_id}")
 def delete_user(user_id: int):
     with Session(engine) as session:
@@ -1399,6 +1414,10 @@ def delete_user(user_id: int):
         return {"success": True}
 
 
+# Defines the data returned to the admin analytics screen.
+# Groups key platform statistics (users, bookings, reviews, messages)
+# into a single structured response.
+# https://fastapi.tiangolo.com/tutorial/response-model/
 class AdminAnalyticsOut(BaseModel):
     total_users: int
     total_mothers: int
@@ -1423,16 +1442,23 @@ class AdminAnalyticsOut(BaseModel):
 @app.get("/admin/analytics", response_model=AdminAnalyticsOut)
 def admin_analytics():
     with Session(engine) as session:
-        # Users
+        # Users Counts
+        # Fetch all user records from the database
         users = session.exec(select(User)).all()
+        # Count total number of users in the system
+        #https://docs.python.org/3/library/functions.html#len
         total_users = len(users)
+        #https://docs.python.org/3/library/functions.html#sum
         total_mothers = sum(1 for u in users if u.role == "mother")
         total_doulas = sum(1 for u in users if u.role == "doula")
         total_admins = sum(1 for u in users if u.role == "admin")
+        # Count doulas who are not yet verified by admin
         pending_doulas = sum(1 for u in users if u.role == "doula" and u.verified == False)
+        # Count doulas who have been approved
         verified_doulas = sum(1 for u in users if u.role == "doula" and u.verified == True)
 
-        # Bookings
+        # Bookings counts
+        # Fetch all booking records from the database
         bookings = session.exec(select(Booking)).all()
         total_bookings = len(bookings)
         bookings_requested = sum(1 for b in bookings if b.status == "requested")
@@ -1441,7 +1467,7 @@ def admin_analytics():
         bookings_cancelled = sum(1 for b in bookings if b.status == "cancelled")
         bookings_paid = sum(1 for b in bookings if b.status == "paid")
 
-        # Reviews and Messages
+        # Reviews and Messages Counts
         reviews = session.exec(select(Review)).all()
         total_reviews = len(reviews)
 

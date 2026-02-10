@@ -4,7 +4,7 @@
   What this screen does:
   - Displays all user accounts (mothers and doulas and admins if they exist).
   - Lets an admin delete fake / unused accounts.
-  - Uses your existing backend endpoints:
+  - Uses existing backend endpoints:
       - GET /users                (loads all users)
       - DELETE /admin/users/{id}  (removes a user)
 
@@ -19,10 +19,10 @@
       - MyBookingsScreen: Alert.confirm before Accept/Decline
       - This screen:      Alert.confirm before Delete
   - Same "pull to refresh" idea:
-      - MyBookingsScreen: FlatList onRefresh -> loadBookings()
-      - This screen:      RefreshControl -> loadUsers()
+      - MyBookingsScreen: FlatList onRefresh to loadBookings()
+      - This screen:      RefreshControl to loadUsers()
 
-  React Native component references (same ones you used in bookings screen):
+  React Native component references (same ones used in bookings screen):
   - View/Text: https://reactnative.dev/docs/view , https://reactnative.dev/docs/text
   - FlatList: https://reactnative.dev/docs/flatlist
   - TouchableOpacity (press handlers): https://reactnative.dev/docs/touchableopacity
@@ -60,8 +60,10 @@ export default function AdminManageUsersScreen({ navigation }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
 
-   // Load all users from backend (equivalent of loadBookings())
+   // Load all users from backend (equivalent to loadBookings())
   // GET /users iS existing endpoint in main.py
+  //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch
+  // Uses try/catch/finally to handle success, errors, and loading state safely
   const loadUsers = async () => {
     setLoading(true);
     try {

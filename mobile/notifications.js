@@ -38,7 +38,9 @@
   Additional references:
     Expo Notifications (API Docs)
     https://docs.expo.dev/versions/latest/sdk/notifications/
-*/
+    https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Optional_chaining
+ */
+
 import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -55,7 +57,7 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Ask for permission (on iOS it will show the OS popup)
+// Ask for permission (pop up on IOS)
 // Similar to the article - Notifications.requestPermissionsAsync()
 export async function requestNotificationPermission() {
   const { status } = await Notifications.getPermissionsAsync();
@@ -180,7 +182,9 @@ I use the same local notification API from the reference, but instead of
 scheduling a time-based reminder, this section triggers an immediate
 notification when new unread messages are detected.
 
+
 What I adapted from the reference:
+  - saved unread baseline in AsyncStorage and only notify when unread count increases
   - Uses `Notifications.scheduleNotificationAsync()` to display a local alert
   - Fires the notification instantly using `trigger: null`
   - No seconds- or date-based trigger is used
@@ -208,18 +212,26 @@ export async function checkMessageNotifications(userAuthId, role) {
   const res = await api.get("/messages/unread-count", {
     params: { user_auth_id: userAuthId, role },
   });
+// Get unread message count from the API response
+// If the response or count is missing, use 0 instead
+  // The `?` checks if something exists before using it, so the app doesn’t crash if it’s missing
 
   const count = res.data?.count ?? 0;
 
     // Load previously stored unread count from AsyncStorage
   const key = msgUnreadKey(userAuthId, role);
+  // Get the previously saved unread count from the device
   const prevRaw = await AsyncStorage.getItem(key);
 
+  // If nothing was saved before (first time opening inbox)
   if (prevRaw === null) {
+    // Save the current count so  have a baseline
     await AsyncStorage.setItem(key, String(count));
     return count;
   }
-
+//https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Optional_chaining
+  // Convert the saved value from string to number
+// If it fails, fall back to 0
   const prev = prevRaw ? Number(prevRaw) : 0;
 
   // Trigger a local notification only if unread count increased

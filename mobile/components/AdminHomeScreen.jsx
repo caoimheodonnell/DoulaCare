@@ -9,12 +9,12 @@
         - "AdminManageUsers"   (delete users)
         - "AdminAnalytics"     (stats)
       React Navigation (navigate / reset):
-        - https://reactnavigation.org/docs/navigation-prop/
+
         - https://reactnavigation.org/docs/navigation-actions/
 
     - Uses `navigation.reset()` on logout to return to AppGate (clears back history),
       matching the pattern you use in Mother/Doula Home screens.
-      https://reactnavigation.org/docs/navigation-prop/#reset
+
 
   UI / Components:
     - View/Text: core layout and labels
@@ -28,11 +28,9 @@
       https://reactnative.dev/docs/modal
     - Alert: shows "coming soon" placeholder messages
       https://reactnative.dev/docs/alert
-    - Ionicons from @expo/vector-icons (same as your HomeScreen)
+    - Ionicons from @expo/vector-icons (same as doula/mother HomeScreen)
       https://icons.expo.fyi/
       https://ionic.io/ionicons
-
-
     - Acts as the admin dashboard entry point.
 
 */
@@ -72,8 +70,8 @@ export default function AdminHomeScreen({ navigation }) {
   const closeMenu = () => setMenuVisible(false);
 
 // Navigate to the pending doula approvals list
-  // This matches your backend logic:
-  // GET /admin/doulas/pending -> doulas where verified == false
+  // This matches the backend logic:
+  // GET /admin/doulas/pending to doulas where verified == false
   const goPendingDoulas = () => {
   closeMenu();
   navigation.navigate("PendingDoulas");
@@ -82,7 +80,6 @@ export default function AdminHomeScreen({ navigation }) {
    // Logout helper:
   // - calls signOut() (Supabase logout)
   // - resets navigation stack to AppGate so you can't go "Back" into admin pages
-  // https://reactnavigation.org/docs/navigation-prop/#reset
   const doLogout = async () => {
     await signOut();
     closeMenu();
@@ -99,8 +96,8 @@ export default function AdminHomeScreen({ navigation }) {
       </View>
 
 
-      {/* MAIN CONTENT (center hero section)
-          View/Text/Image mirrors your Mother/Doula home layout
+      {/* MAIN CONTENT
+          View/Text/Image mirrors  Mother/Doula home layout
       */}
       <View style={styles.hero}>
         <Image source={LOGO} style={styles.logo} />

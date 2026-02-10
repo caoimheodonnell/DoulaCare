@@ -66,6 +66,7 @@ const COLORS = {
   border: "#EBDAD2",
 };
 
+// Cross-platform alert helper (web vs mobile)
 function showMessage(title, message) {
   if (Platform.OS === "web") window.alert(`${title}\n\n${message}`);
   else Alert.alert(title, message);
@@ -78,7 +79,11 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+
   const onRegister = async () => {
+    // Normalise user input to avoid whitespace and casing issues
+    // String.trim(): https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/trim
+
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
     const cleanName = name.trim();
@@ -205,6 +210,7 @@ if (!cleanName) {
     </View>
   );
 }
+
 
 //https://reactnative.dev/docs/stylesheet- Modified for register
 const styles = StyleSheet.create({

@@ -4,12 +4,12 @@
   What this screen does:
   - Loads all doula profiles that are waiting for approval (role="doula" and verified=false).
   - Shows key profile info (name, location, price, experience).
-  - Lets admin open the uploaded certificate link (if present).
+  - Lets admin open the uploaded certificate link (if uploaded).
   - Lets admin approve a doula:
       - PATCH /users/{id} with { verified: true }
       - Then refreshes the pending list.
 
-  How this is SIMILAR to your MyBookingsScreen accept/decline logic:
+  How this is SIMILAR to  MyBookingsScreen accept/decline logic:
   - Same “load list from backend” pattern:
       - MyBookingsScreen:   loadBookings() - GET /bookings/by-doula-auth/{doulaAuthId}
       - This screen:        loadPending()  -GET /admin/doulas/pending
@@ -52,6 +52,7 @@ export default function PendingDoulasScreen({ navigation }) {
 
   // Load pending doulas (equivalent to loadBookings())
   // Calls: GET /admin/doulas/pending
+  //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch - same idea
   const loadPending = async () => {
     setLoading(true);
     try {
@@ -64,13 +65,14 @@ export default function PendingDoulasScreen({ navigation }) {
     }
   };
 
-  // Load once on mount (same as your bookings screen)
+  // Load once on mount (same as bookings screen)
   useEffect(() => {
     loadPending();
   }, []);
 
    // Approve action (similar to updateStatus in bookings screen)
   // Calls: PATCH /users/{id} with { verified: true }
+  //https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch - same idea
   const approveDoula = async (doulaId) => {
     try {
       await api.patch(`/users/${doulaId}`, { verified: true });
@@ -82,7 +84,7 @@ export default function PendingDoulasScreen({ navigation }) {
     }
   };
 
-   // Open certificate link (uses React Native Linking)
+   // Open certificate link (uses React Native Linking) - same concept as post partum tips open URL
   const openCertificate = async (url) => {
     if (!url) return;
     try {
