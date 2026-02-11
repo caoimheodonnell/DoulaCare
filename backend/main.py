@@ -43,7 +43,7 @@ from uuid import uuid4
 #file copy for uploads
 import shutil
 from fastapi.responses import JSONResponse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time,date, timedelta
 from fastapi.routing import APIRoute
 from fastapi import WebSocket, WebSocketDisconnect
 from backend.chat import manager
@@ -57,7 +57,8 @@ from backend.schemas import ReviewCreate
 from backend.models.review import Review
 from backend.models.favourite import Favourite
 from backend.models.message import Message
-
+from backend.models.resources import Resource
+from backend.models.availability_models import DoulaAvailability, DoulaAvailabilityException
 
 
 class CheckoutRequest(BaseModel):
@@ -513,6 +514,9 @@ def get_bookings_for_doula_by_auth(doula_auth_id: UUID):
                 "booking_id": b.id,
                 "mother_name": mother.name if mother else None,
                 "doula_name": doula.name,
+                "care_needs": mother.care_needs if mother else None,
+                "preferred_support": mother.preferred_support if mother else None,
+                "notes": mother.notes if mother else None,
                 "location": mother.location if mother else None,
                 "starts_at": b.starts_at,
                 "ends_at": b.ends_at,
@@ -1313,6 +1317,11 @@ class UserUpdate(BaseModel):
     price_bundle: Optional[float] = None
     years_experience: Optional[int] = None
     email: Optional[str] = None
+    care_needs: Optional[str] = None
+    pregnancy_stage: Optional[str] = None
+    postpartum_stage: Optional[str] = None
+    preferred_support: Optional[str] = None
+    notes: Optional[str] = None
 
 # Admin-style update: edits a user by internal database ID (e.g., approve a doula, correct account data).
 # Adapted from ChatGpt - https://chatgpt.com/c/698366b9-615c-8388-b668-20fbe77ceee
@@ -1492,3 +1501,239 @@ def admin_analytics():
             total_reviews=total_reviews,
             total_messages=total_messages,
         )
+
+class ResourceIn(BaseModel):
+    title: str
+    description: str
+    url: str
+    source_label: str = "Read more"
+    tags: str = ""
+
+
+
+
+class ResourceUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
+    source_label: Optional[str] = None
+    tags: Optional[str] = None
+
+@app.get("/resources")
+def get_resources():
+    with Session(engine) as session:
+        resources = session.exec(select(Resource).order_by(Resource.created_at.desc())).all()
+        return resources
+
+
+
+@app.post("/admin/resources")
+def create_resource(body: ResourceIn):
+    with Session(engine) as session:
+        r = Resource(**body.model_dump())
+        session.add(r)
+        session.commit()
+        session.refresh(r)
+        return r
+
+
+@app.patch("/admin/resources/{resource_id}")
+def update_resource(resource_id: int, body: ResourceUpdate):
+    with Session(engine) as session:
+        r = session.get(Resource, resource_id)
+        if not r:
+            raise HTTPException(404, "Resource not found")
+
+        # Only update fields that were actually sent
+        data = body.model_dump(exclude_unset=True)
+
+        for k, v in data.items():
+            setattr(r, k, v)
+
+        session.add(r)
+        session.commit()
+        session.refresh(r)
+        return r
+
+@app.delete("/admin/resources/{resource_id}")
+def delete_resource(resource_id: int):
+    with Session(engine) as session:
+        r = session.get(Resource, resource_id)
+        if not r:
+            raise HTTPException(404, "Resource not found")
+        session.delete(r)
+        session.commit()
+        return {"success": True}
+
+class WeeklyAvailabilityIn(BaseModel):
+    day_of_week: int
+    start_time: str
+    end_time: str
+    active: bool = True
+
+def parse_hhmm(s: str) -> time:
+    if not s or ":" not in s:
+        raise HTTPException(status_code=400, detail=f"Invalid time '{s}'. Use HH:MM.")
+    try:
+        hh, mm = s.strip().split(":")
+        hh_i = int(hh)
+        mm_i = int(mm)
+        if hh_i < 0 or hh_i > 23 or mm_i < 0 or mm_i > 59:
+            raise ValueError()
+        return time(hh_i, mm_i)
+    except Exception:
+        raise HTTPException(status_code=400, detail=f"Invalid time '{s}'. Use HH:MM (24h), e.g. 09:00.")
+
+@app.post("/availability/weekly/by-doula-auth/{doula_auth_id}")
+def set_weekly_availability(doula_auth_id: UUID, items: List[WeeklyAvailabilityIn]):
+    with Session(engine) as session:
+        doula = session.exec(select(User).where(User.auth_id == doula_auth_id)).first()
+        if not doula or doula.role != "doula":
+            raise HTTPException(404, "Doula not found")
+
+        # delete existing rows
+        existing = session.exec(
+            select(DoulaAvailability).where(DoulaAvailability.doula_id == doula.id)
+        ).all()
+        for row in existing:
+            session.delete(row)
+
+        # VALIDATION + INSERT is here
+        for it in items:
+            # 1) validate day_of_week
+            if it.day_of_week < 0 or it.day_of_week > 6:
+                raise HTTPException(status_code=400, detail="day_of_week must be 0..6 (Mon..Sun).")
+
+            # 2) validate/parse times
+            st = parse_hhmm(it.start_time)
+            et = parse_hhmm(it.end_time)
+
+            #  3) validate order (only if active)
+            if it.active and et <= st:
+                raise HTTPException(status_code=400, detail="end_time must be after start_time for active days.")
+
+            #  only add after passing validation
+            session.add(DoulaAvailability(
+                doula_id=doula.id,
+                day_of_week=it.day_of_week,
+                start_time=st,
+                end_time=et,
+                active=it.active,
+            ))
+
+        session.commit()
+        return {"ok": True}
+
+class ExceptionIn(BaseModel):
+    date: str                  # "YYYY-MM-DD"
+    start_time: str | None = None  # "10:00" or null
+    end_time: str | None = None
+    reason: str | None = None
+
+@app.post("/availability/exceptions/by-doula-auth/{doula_auth_id}")
+def add_exception(doula_auth_id: UUID, payload: ExceptionIn):
+    with Session(engine) as session:
+        doula = session.exec(select(User).where(User.auth_id == doula_auth_id)).first()
+        if not doula or doula.role != "doula":
+            raise HTTPException(404, "Doula not found")
+
+        d = date.fromisoformat(payload.date)
+
+        st = parse_hhmm(payload.start_time) if payload.start_time else None
+        et = parse_hhmm(payload.end_time) if payload.end_time else None
+
+
+        # Either both times provided OR neither (whole day)
+        if (st is None) != (et is None):
+            raise HTTPException(
+                status_code=400,
+                detail="Provide BOTH start_time and end_time, or neither for a whole-day block."
+            )
+
+        # If partial block, end must be after start
+        if st is not None and et is not None and et <= st:
+            raise HTTPException(
+                status_code=400,
+                detail="end_time must be after start_time."
+            )
+
+        # only create row after passing validation
+        row = DoulaAvailabilityException(
+            doula_id=doula.id,
+            exception_date=d,
+            start_time=st,
+            end_time=et,
+            reason=payload.reason,
+        )
+
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+        return row
+
+@app.get("/availability/free-slots")
+def free_slots(
+    doula_id: int,
+    date: str = Query(..., description="YYYY-MM-DD"),
+    slot_minutes: int = 30,
+    duration_minutes: int = 60
+):
+    target_date = datetime.fromisoformat(date).date()
+    dow = target_date.weekday()  # 0..6
+
+    with Session(engine) as session:
+        weekly = session.exec(select(DoulaAvailability).where(
+            DoulaAvailability.doula_id == doula_id,
+            DoulaAvailability.day_of_week == dow,
+            DoulaAvailability.active == True
+        )).all()
+
+        exceptions = session.exec(select(DoulaAvailabilityException).where(
+            DoulaAvailabilityException.doula_id == doula_id,
+            DoulaAvailabilityException.exception_date == target_date
+        )).all()
+
+        bookings = session.exec(select(Booking).where(Booking.doula_id == doula_id)).all()
+
+    # whole-day block?
+    for ex in exceptions:
+        if ex.start_time is None and ex.end_time is None:
+            return {"slots": []}
+
+    blocked = []
+
+    for b in bookings:
+        if not b.starts_at or not b.ends_at:
+            continue
+        if b.status in ("declined", "cancelled"):
+            continue
+        if b.starts_at.date() != target_date:
+            continue
+        blocked.append((b.starts_at, b.ends_at))
+
+    for ex in exceptions:
+        if ex.start_time and ex.end_time:
+            s = datetime.combine(target_date, ex.start_time)
+            e = datetime.combine(target_date, ex.end_time)
+            blocked.append((s, e))
+
+    def overlaps(s1, e1, s2, e2):
+        return s1 < e2 and e1 > s2
+
+    dur = timedelta(minutes=duration_minutes)
+    step = timedelta(minutes=slot_minutes)
+
+    slots = []
+    for w in weekly:
+        window_start = datetime.combine(target_date, w.start_time)
+        window_end = datetime.combine(target_date, w.end_time)
+
+        t = window_start
+        while t + dur <= window_end:
+            s = t
+            e = t + dur
+            if not any(overlaps(s, e, bs, be) for (bs, be) in blocked):
+                slots.append(s.strftime("%H:%M"))
+            t += step
+
+    return {"slots": slots}

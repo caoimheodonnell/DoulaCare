@@ -13,7 +13,7 @@
         - https://reactnavigation.org/docs/navigation-actions/
 
     - Uses `navigation.reset()` on logout to return to AppGate (clears back history),
-      matching the pattern you use in Mother/Doula Home screens.
+      matching the pattern use in Mother/Doula Home screens.
 
 
   UI / Components:
@@ -170,6 +170,20 @@ export default function AdminHomeScreen({ navigation }) {
                 />
                 <Text style={styles.menuItemText}>Analytics</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity
+  style={styles.menuItem}
+  onPress={() => navigation.navigate("AdminResourcesScreen")}
+>
+  <Ionicons
+    name="book-outline"
+    size={20}
+    color={COLORS.accent}
+    style={styles.menuIcon}
+  />
+  <Text style={styles.menuItemText}>Manage Resources</Text>
+</TouchableOpacity>
+
 
 
 

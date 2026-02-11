@@ -53,6 +53,9 @@ import PendingDoulasScreen from "./components/PendingDoulasScreen";
 import AdminManageUsersScreen from "./components/AdminManageUsersScreen";
 import AdminAnalyticsScreen from "./components/AdminAnalyticsScreen";
 import DoulaPendingApproval from "./components/DoulaPendingApproval";
+import AdminResourcesScreen from "./components/AdminResourcesScreen";
+import DoulaAvailabilityScreen from "./components/DoulaAvailabilityScreen";
+import MotherProfileScreen from "./components/MotherProfileScreen";
 
 
 
@@ -141,7 +144,16 @@ function DoulasStackScreen() {
   options={{ title: "Coping Tools" }}
 />
 
-
+<Stack.Screen
+  name="DoulaAvailability"
+  component={DoulaAvailabilityScreen}
+  options={{ title: "My Availability" }}
+/>
+<Stack.Screen
+  name="MotherProfile"
+  component={MotherProfileScreen}
+  options={{ title: "Mother Profile" }}
+/>
 
     </Stack.Navigator>
   );
@@ -222,7 +234,7 @@ export default function App() {
 />
 
 <Root.Screen name="DoulaPendingApproval" component={DoulaPendingApproval} />
-
+<Root.Screen name="AdminResourcesScreen" component={AdminResourcesScreen} />
 
 </Root.Navigator>
 

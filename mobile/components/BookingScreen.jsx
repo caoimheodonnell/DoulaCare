@@ -72,29 +72,20 @@ function showMessage(title, message) {
    openPicker('date'|'time') can call .showPicker() or .click().
  -Chatgpt error fixing for web- https://chatgpt.com/c/690c7dd0-7b44-8327-af99-6b685dae18a5
  */
-const HiddenWebPickers = ({ dateRef, timeRef, onDate, onTime }) => {
+const HiddenWebPickers = ({ dateRef, onDate }) => {
   if (Platform.OS !== "web") return null;
   return (
-    <View
-      style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}
-      accessibilityElementsHidden
-      importantForAccessibility="no-hide-descendants"
-    >
+    <View style={{ position: "absolute", width: 0, height: 0, overflow: "hidden" }}>
       {React.createElement("input", {
         ref: dateRef,
         type: "date",
         onChange: (e) => onDate(e.target.value),
         style: { position: "absolute", opacity: 0, width: 0, height: 0 },
       })}
-      {React.createElement("input", {
-        ref: timeRef,
-        type: "time",
-        onChange: (e) => onTime(e.target.value),
-        style: { position: "absolute", opacity: 0, width: 0, height: 0 },
-      })}
     </View>
   );
 };
+
 
 // same layout as adduserformmobile
 // Skeleton form chatgpt chat for addusermobile but used for booking -  https://chatgpt.com/c/68f40a4c-6598-8325-9399-b695370996ed
@@ -127,31 +118,52 @@ export default function BookingScreen({ onBooked }) {
   const dateRef = React.useRef(null);
   const timeRef = React.useRef(null);
 
+  // Slots returned by backend availability engine (weekly schedule - exceptions - existing bookings)
+// Mothers can only pick one of these times (prevents booking on blocked days/times)
+  const [availableSlots, setAvailableSlots] = React.useState([]);
+const [loadingSlots, setLoadingSlots] = React.useState(false);
+
+const [profileIncomplete, setProfileIncomplete] = React.useState(false);
+
   React.useEffect(() => {
   const loadMotherId = async () => {
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const authId = sessionData?.session?.user?.id;
-      if (!authId) return;
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const authId = sessionData?.session?.user?.id;
+    if (!authId) return;
 
-      const { data } = await api.get("/users");
-      const me = (data || []).find(
-        (u) => u.role === "mother" && String(u.auth_id) === String(authId)
+    // Get full profile directly
+    const res = await api.get(`/users/by-auth/${authId}`);
+    const prof = res?.data;
+
+    const missing =
+      !prof?.location ||
+      !prof?.care_needs ||
+      !prof?.preferred_support;
+
+    setProfileIncomplete(Boolean(missing));
+
+    // Still get numeric mother_id (for bookings)
+    const { data } = await api.get("/users");
+    const me = (data || []).find(
+      (u) => u.role === "mother" && String(u.auth_id) === String(authId)
+    );
+
+    if (!me) {
+      showMessage(
+        "Account not ready",
+        "Your user row isn't in the app database yet."
       );
-
-      if (!me) {
-        showMessage(
-          "Account not ready",
-          "Your user row isn't in the app database yet. Try logging out and back in, or ensure /users/bootstrap succeeds."
-        );
-        return;
-      }
-
-      setMotherId(me.id); // <- numeric mother_id to use for bookings
-    } catch (e) {
-      console.error("loadMotherId error", e);
+      return;
     }
-  };
+
+    setMotherId(me.id);
+
+  } catch (e) {
+    console.error("loadMotherId error", e);
+  }
+};
+
 
   loadMotherId();
 }, []);
@@ -189,26 +201,66 @@ export default function BookingScreen({ onBooked }) {
     });
   }, [date, doulaBookings]);
 
+  // Load available time slots whenever:
+// - doula changes
+// - date changes
+// - duration changes
+// Backend endpoint returns a list of allowed "HH:MM" start times for this date.
+React.useEffect(() => {
+  const run = async () => {
+    const id = Number(doulaId);
+    const dur = Number(duration) || 60;
+
+    if (!id || !date) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    try {
+      setLoadingSlots(true);
+
+      const res = await api.get("/availability/free-slots", {
+        params: {
+          doula_id: id,
+          date,
+          slot_minutes: 30,
+          duration_minutes: dur,
+        },
+      });
+
+      const slots = res?.data?.slots || [];
+      setAvailableSlots(slots);
+
+      // If current startTime is no longer valid, clear it
+      if (startTime && !slots.includes(startTime)) {
+        setStartTime("");
+      }
+    } catch (e) {
+      console.error("load free slots error", e);
+      setAvailableSlots([]);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  run();
+}, [doulaId, date, duration]); // <— important deps
 
 
 
   // Native picker change
    //  From Date and Time picker video tutorial: onChange event — hides picker (Android) and updates date/time https://www.youtube.com/watch?v=Imkw-xFFLeE
   const onNativeChange = (_evt, selected) => {
-    if (Platform.OS !== "ios") setShowPicker(false);
-    const d = selected || pickerDate;
-    setPickerDate(d);
-    if (pickerMode === "date") {
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      setDate(`${y}-${m}-${dd}`);
-    } else {
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      setStartTime(`${hh}:${mm}`);
-    }
-  };
+  if (Platform.OS !== "ios") setShowPicker(false);
+  const d = selected || pickerDate;
+  setPickerDate(d);
+
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  setDate(`${y}-${m}-${dd}`);
+};
+
 
   //From Date and Time youtube video tutorial: open the picker, toggling "date" or "time"-https://www.youtube.com/watch?v=Imkw-xFFLeE
   // Web picker support:
@@ -219,20 +271,17 @@ export default function BookingScreen({ onBooked }) {
 // - MDN: https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/showPicker
 
 
-  const openPicker = (kind) => {
-    if (Platform.OS === "web") {
-      const el = kind === "date" ? dateRef.current : timeRef.current;
-      if (!el) return;
-      if (typeof el.showPicker === "function") el.showPicker();
-      else {
-        el.focus();
-        el.click();
-      }
-      return;
-    }
-    setPickerMode(kind);
-    setShowPicker(true);
-  };
+  const openPicker = () => {
+  if (Platform.OS === "web") {
+    const el = dateRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === "function") el.showPicker();
+    else { el.focus(); el.click(); }
+    return;
+  }
+  setShowPicker(true);
+};
+
 
   const handleSubmit = async () => {
     if (!motherId) {
@@ -242,9 +291,24 @@ export default function BookingScreen({ onBooked }) {
   );
   return;
 }
+    if (profileIncomplete) {
+    showMessage(
+      "Profile incomplete",
+      "Please complete your profile before making a booking."
+    );
+    return;
+  }
 
 if (!doulaId || !date || !startTime || !duration) {
   showMessage("Missing info", "Please select doula, date, time and duration.");
+  return;
+}
+
+if (availableSlots.length > 0 && !availableSlots.includes(startTime)) {
+  showMessage(
+    "Time not available",
+    "Please choose one of the available times."
+  );
   return;
 }
 
@@ -412,29 +476,49 @@ if ([mother_id, doula_id, dur].some((n) => Number.isNaN(n)) || dur <= 0) {
             </TouchableOpacity>
           </View>
 
-          {/* Time row */}
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <TextInput
-                placeholder="Start Time (HH:MM) *"
-                value={startTime}
-                onChangeText={setStartTime}
-                style={styles.input}
-              />
-            </View>
-            <TouchableOpacity style={styles.smallBtn} onPress={() => openPicker("time")}>
-              <Text style={styles.smallBtnText}>Pick Time</Text>
-            </TouchableOpacity>
-          </View>
+         {/* Available slots (from backend availability) */}
+<View style={{ marginTop: 8 }}>
+  <Text style={{ fontWeight: "700", color: COLORS.accent, marginBottom: 6 }}>
+    Available times:
+  </Text>
+
+  {loadingSlots ? (
+    <Text style={{ color: COLORS.text }}>Loading times…</Text>
+  ) : availableSlots.length === 0 ? (
+    <Text style={{ color: COLORS.text }}>
+      No availability for this date. Please choose another day.
+    </Text>
+  ) : (
+    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+      {availableSlots.map((t) => (
+        <TouchableOpacity
+          key={t}
+          onPress={() => setStartTime(t)}
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            borderRadius: 10,
+            borderWidth: 1.5,
+            borderColor: COLORS.border,
+            backgroundColor: startTime === t ? COLORS.primary : COLORS.white,
+            marginRight: 8,
+            marginBottom: 8,
+          }}
+        >
+          <Text style={{ color: startTime === t ? COLORS.white : COLORS.text, fontWeight: "700" }}>
+            {t}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  )}
+</View>
+
 
           {/* Web-only hidden inputs
            - Chatgpt error fixing for web -https://chatgpt.com/c/690c7dd0-7b44-8327-af99-6b685dae18a5*/}
-          <HiddenWebPickers
-            dateRef={dateRef}
-            timeRef={timeRef}
-            onDate={setDate}
-            onTime={setStartTime}
-          />
+          <HiddenWebPickers dateRef={dateRef} onDate={setDate} />
+
 
           {/* Native picker (iOS/Android) */}
           {/* From Date and Time youtube video tutorial: datetime picker https://www.youtube.com/watch?v=Imkw-xFFLeE*/}

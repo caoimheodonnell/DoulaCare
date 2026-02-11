@@ -29,6 +29,12 @@ class User(SQLModel, table=True):
     bundle_caption: Optional[str] = None
     auth_id: Optional[UUID] = Field(default=None, index=True)
 
+    care_needs: Optional[str] = Field(default=None, sa_column=Column(Text))
+    pregnancy_stage: Optional[str] = Field(default=None, sa_column=Column(Text))
+    postpartum_stage: Optional[str] = Field(default=None, sa_column=Column(Text))
+    preferred_support: Optional[str] = Field(default=None, sa_column=Column(Text))
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+
 
 
 

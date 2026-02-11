@@ -2,11 +2,11 @@
 /*
   Purpose:
     - This is the admin “analytics dashboard” screen.
-    - It loads summary stats from your FastAPI endpoint:
+    - It loads summary stats from  FastAPI endpoint:
         GET /admin/analytics
       and displays them in simple “stat cards”.
 
-  How this is similar to other screens:
+  How this is similar to other admin screens:
     - Same loading pattern as PendingDoulasScreen / AdminManageUsersScreen:
         - local state for data and loading
         - fetch on mount (useEffect)

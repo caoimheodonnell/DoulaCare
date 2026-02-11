@@ -262,44 +262,58 @@ export default function MyBookingsScreen() {
     const ends = item.ends_at ? new Date(item.ends_at) : null;
 
     return (
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>
-          {item.mother_name || "Unknown mother"}
-        </Text>
-        <Text style={styles.cardText}>
-          {starts
-            ? `Starts: ${starts.toLocaleString()}`
-            : "Starts: (missing date)"}
-        </Text>
-        <Text style={styles.cardText}>
-          {ends ? `Ends: ${ends.toLocaleString()}` : "Ends: (missing date)"}
-        </Text>
-        <Text style={styles.cardText}>Mode: {item.mode}</Text>
-        <Text style={[styles.status, styles[`status_${item.status}`]]}>
-          Status: {item.status}
-        </Text>
-        {/* ON press -https://reactnative.dev/docs/handling-touches*/}
-        {item.status === "requested" && (
-          <View style={styles.actionsRow}>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.acceptBtn]}
-              onPress={() => updateStatus(item, "confirmed")}
+    <View style={styles.card}>
+      <Text style={styles.cardTitle}>
+        {item.mother_name || "Unknown mother"}
+      </Text>
 
-            >
-              <Text style={styles.actionText}>Accept</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.declineBtn]}
-              onPress={() => updateStatus(item, "declined")}
-            >
-              <Text style={styles.actionText}>Decline</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    );
-  };
+      {/* NEW FIELDS */}
+      {item.location && (
+        <Text style={styles.cardText}>Location: {item.location}</Text>
+      )}
 
+      {item.care_needs && (
+        <Text style={styles.cardText}>Care Needs: {item.care_needs}</Text>
+      )}
+
+      {item.notes && (
+        <Text style={styles.cardText}>Notes: {item.notes}</Text>
+      )}
+
+      <Text style={styles.cardText}>
+        {starts ? `Starts: ${starts.toLocaleString()}` : "Starts: (missing date)"}
+      </Text>
+
+      <Text style={styles.cardText}>
+        {ends ? `Ends: ${ends.toLocaleString()}` : "Ends: (missing date)"}
+      </Text>
+
+      <Text style={styles.cardText}>Mode: {item.mode}</Text>
+
+      <Text style={[styles.status, styles[`status_${item.status}`]]}>
+        Status: {item.status}
+      </Text>
+
+      {item.status === "requested" && (
+        <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.acceptBtn]}
+            onPress={() => updateStatus(item, "confirmed")}
+          >
+            <Text style={styles.actionText}>Accept</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.declineBtn]}
+            onPress={() => updateStatus(item, "declined")}
+          >
+            <Text style={styles.actionText}>Decline</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+};
   // Initial spinner while loading bookings the first time
   if (loading && !refreshing) {
     return (

@@ -134,6 +134,16 @@ useEffect(() => {
   );
 };
 
+ const goAvailability = () => {
+  closeMenu();
+  navigation.dispatch(
+    CommonActions.navigate({
+      name: "Doulas",
+      params: { screen: "DoulaAvailability" },
+    })
+  );
+};
+
 
   //  logout helper
   const doLogout = async () => {
@@ -188,6 +198,12 @@ useEffect(() => {
                 <Ionicons name="chatbubbles-outline" size={20} color={COLORS.accent} style={styles.menuIcon} />
                 <Text style={styles.menuItemText}>Community Chat</Text>
               </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={goAvailability}>
+  <Ionicons name="time-outline" size={20} color={COLORS.accent} style={styles.menuIcon} />
+  <Text style={styles.menuItemText}>My Availability</Text>
+</TouchableOpacity>
+
 
               <TouchableOpacity style={styles.menuItem} onPress={goHelp}>
                 <Ionicons name="help-circle-outline" size={20} color={COLORS.accent} style={styles.menuIcon} />

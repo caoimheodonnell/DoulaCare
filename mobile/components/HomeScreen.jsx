@@ -160,6 +160,15 @@ const goMessages = () => {
   );
 };
 
+const goMotherProfile = () => {
+  closeMenu();
+  navigation.dispatch(
+    CommonActions.navigate({
+      name: "Doulas",
+      params: { screen: "MotherProfile" },
+    })
+  );
+};
 
 
   // logout helper
@@ -219,6 +228,15 @@ const goMessages = () => {
                 />
                 <Text style={styles.menuItemText}>Browse Doulas</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={goMotherProfile}>
+  <Ionicons
+    name="person-circle-outline"
+    size={20}
+    color={COLORS.accent}
+    style={styles.menuIcon}
+  />
+  <Text style={styles.menuItemText}>My Profile</Text>
+</TouchableOpacity>
 
               <TouchableOpacity style={styles.menuItem} onPress={goMotherBookings}>
                 <Ionicons
@@ -259,6 +277,8 @@ const goMessages = () => {
                 />
                 <Text style={styles.menuItemText}>Postpartum Tips</Text>
               </TouchableOpacity>
+
+
 
               <TouchableOpacity style={styles.menuItem} onPress={goCopingTools}>
   <Ionicons
